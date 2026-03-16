@@ -57,6 +57,11 @@ public class PlayerController : MonoBehaviour
     private float burningEndTime = 0f;
     private float burningDamagePerSecond = 5f;
     private float lastBurningDamageTime = 0f;
+    public GameObject burningEffectPrefab;
+    public float burningEffectLifetime = 3f;
+    public Color burningTintColor = new Color(1f, 0.3f, 0.1f, 1f);
+    public Vector3 burningEffectOffset = new Vector3(0f, 0.2f, 0f);
+    private GameObject burningEffectInstance;
 
     [Header("动画")]
     [SerializeField] private Animator animator;
@@ -94,6 +99,7 @@ public class PlayerController : MonoBehaviour
     private bool rendererCacheBuilt = false;
     private bool slowTintActive = false;
     private bool frozenTintActive = false;
+    private bool burningTintActive = false;
     private Collider bodyCollider;
     private float verticalVelocity = 0f;
     private bool isGrounded = true;
@@ -653,6 +659,16 @@ public class PlayerController : MonoBehaviour
         burningEndTime = Time.time + duration;
         burningDamagePerSecond = damagePerSecond;
         lastBurningDamageTime = Time.time;
+        // 叠加特效与染色
+        if (burningEffectPrefab != null && burningEffectInstance == null)
+        {
+            burningEffectInstance = Instantiate(burningEffectPrefab, transform);
+            burningEffectInstance.transform.localPosition = burningEffectOffset;
+            float effectLife = burningEffectLifetime > 0f ? burningEffectLifetime : duration;
+            if (effectLife > 0f) Destroy(burningEffectInstance, effectLife);
+        }
+        ApplyBurningTint();
+        burningTintActive = true;
         Debug.Log($"[燃烧效果] 持续时间: {duration}秒, 每秒伤害: {damagePerSecond}");
     }
 
@@ -666,6 +682,7 @@ public class PlayerController : MonoBehaviour
         if (Time.time >= burningEndTime)
         {
             isBurning = false;
+            ClearBurningEffect();
             Debug.Log("[燃烧效果] 燃烧结束");
             return;
         }
@@ -674,6 +691,50 @@ public class PlayerController : MonoBehaviour
         {
             lastBurningDamageTime = Time.time;
             TakeDamage(burningDamagePerSecond);
+        }
+    }
+
+    void ApplyBurningTint()
+    {
+        if (!rendererCacheBuilt)
+        {
+            BuildRendererCache();
+        }
+
+        if (rendererCache == null) return;
+
+        for (int i = 0; i < rendererCache.Length; i++)
+        {
+            Renderer r = rendererCache[i];
+            string prop = rendererColorProperty[i];
+            if (r == null || string.IsNullOrEmpty(prop)) continue;
+
+            MaterialPropertyBlock mpb = new MaterialPropertyBlock();
+            r.GetPropertyBlock(mpb);
+            mpb.SetColor(prop, burningTintColor);
+            r.SetPropertyBlock(mpb);
+        }
+    }
+
+    void ClearBurningEffect()
+    {
+        if (burningEffectInstance != null)
+        {
+            Destroy(burningEffectInstance);
+            burningEffectInstance = null;
+        }
+        if (burningTintActive)
+        {
+            // 如果冻结还在，则恢复冻结色，否则还原原色
+            if (frozenTintActive)
+            {
+                ApplyFrozenTint();
+            }
+            else
+            {
+                RestoreFrozenTint();
+            }
+            burningTintActive = false;
         }
     }
 

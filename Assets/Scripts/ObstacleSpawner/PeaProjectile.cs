@@ -12,6 +12,9 @@ public class PeaProjectile : MonoBehaviour
     private bool initialized;
     private float roadHalfWidth = 5f;
     private bool isBurning = false;
+    [Header("燃烧豌豆对玩家的持续效果")]
+    public float burningDurationForPlayer = 2f;
+    public float burningDamagePerSecondForPlayer = 5f;
     private Color burningColor = new Color32(255, 69, 0, 255);
 
     void Awake()
@@ -67,6 +70,10 @@ public class PeaProjectile : MonoBehaviour
             }
 
             player.TakeDamage(damage);
+            if (isBurning)
+            {
+                player.ApplyBurningEffect(burningDurationForPlayer, burningDamagePerSecondForPlayer);
+            }
             Destroy(gameObject);
         }
         else if (other.GetComponent<Nut>() != null || other.GetComponent<TallNut>() != null)

@@ -1928,6 +1928,10 @@ MonoBehaviour:
   maxHealth: 200
   regenDelay: 3
   regenRate: 15
+  burningEffectPrefab: {fileID: 1562819949922040, guid: 2ad6a521d3692b547a306991823ad3d7, type: 3}
+  burningEffectLifetime: 3
+  burningTintColor: {r: 1, g: 0.3, b: 0.1, a: 1}
+  burningEffectOffset: {x: 0, y: 0, z: 0}
   animator: {fileID: 0}
   walkSpeedThreshold: 7
   locomotionDampTime: 0.1
