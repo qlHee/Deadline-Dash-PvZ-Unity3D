@@ -18,17 +18,27 @@ public class PlayerController : MonoBehaviour
     private bool isGrounded = true;
     private CharacterController characterController;
 
+    [Header("生命设置")]
+    public float maxHealth = 100f;
+    public float regenDelay = 7f;
+    public float regenRate = 15f;
+
     [Header("游戏状态")]
     private bool isGameOver = false;
     private float targetSpeed;
     private float totalDistance = 0f;
     private Vector3 lastPosition;
+    private float currentHealth;
+    private float lastDamageTime = Mathf.NegativeInfinity;
+    private float lastObstacleDamageTime = Mathf.NegativeInfinity;
+    private const float obstacleDamageCooldown = 0.2f;
 
     void Start()
     {
         characterController = GetComponent<CharacterController>();
         targetSpeed = forwardSpeed;
         lastPosition = transform.position;
+        currentHealth = maxHealth;
     }
 
     void Update()
@@ -36,6 +46,7 @@ public class PlayerController : MonoBehaviour
         if (isGameOver) return;
 
         HandleMovement();
+        HandleHealthRegen();
         
         // 计算移动距离（只计算向前的距离）
         float distanceMoved = transform.position.z - lastPosition.z;
@@ -124,8 +135,7 @@ public class PlayerController : MonoBehaviour
         // 检测碰撞障碍物
         if (hit.gameObject.CompareTag("Obstacle"))
         {
-            Debug.Log("OnControllerColliderHit: 碰到障碍物");
-            GameOver();
+            ApplyObstacleCollision(hit.gameObject);
         }
 
         // 检测地面
@@ -140,9 +150,73 @@ public class PlayerController : MonoBehaviour
         // 使用Trigger作为额外的碰撞检测方式
         if (other.CompareTag("Obstacle"))
         {
-            Debug.Log("OnTriggerEnter: 碰到障碍物");
+            ApplyObstacleCollision(other.gameObject);
+        }
+    }
+
+    void ApplyObstacleCollision(GameObject obstacleObj)
+    {
+        if (Time.time - lastObstacleDamageTime < obstacleDamageCooldown)
+        {
+            return;
+        }
+
+        lastObstacleDamageTime = Time.time;
+        float damage = GetObstacleDamage(obstacleObj);
+        TakeDamage(damage);
+    }
+
+    float GetObstacleDamage(GameObject obstacleObj)
+    {
+        if (obstacleObj == null) return defaultObstacleDamage;
+        ObstacleCollision obstacleCollision = obstacleObj.GetComponent<ObstacleCollision>();
+        if (obstacleCollision != null)
+        {
+            return obstacleCollision.damage;
+        }
+        return defaultObstacleDamage;
+    }
+
+    void HandleHealthRegen()
+    {
+        if (currentHealth >= maxHealth)
+        {
+            currentHealth = maxHealth;
+            return;
+        }
+
+        if (Time.time - lastDamageTime < regenDelay)
+        {
+            return;
+        }
+
+        currentHealth = Mathf.Min(maxHealth, currentHealth + regenRate * Time.deltaTime);
+    }
+
+    public void TakeDamage(float damageAmount)
+    {
+        if (isGameOver || damageAmount <= 0f)
+        {
+            return;
+        }
+
+        currentHealth = Mathf.Max(0f, currentHealth - damageAmount);
+        lastDamageTime = Time.time;
+
+        if (currentHealth <= 0f)
+        {
             GameOver();
         }
+    }
+
+    public void ApplyObstacleDamage(float damage)
+    {
+        if (Time.time - lastObstacleDamageTime < obstacleDamageCooldown)
+        {
+            return;
+        }
+        lastObstacleDamageTime = Time.time;
+        TakeDamage(damage);
     }
 
     void GameOver()
@@ -180,5 +254,17 @@ public class PlayerController : MonoBehaviour
     {
         return totalDistance;
     }
+
+    public float GetCurrentHealth()
+    {
+        return currentHealth;
+    }
+
+    public float GetMaxHealth()
+    {
+        return maxHealth;
+    }
+
+    private const float defaultObstacleDamage = 25f;
 }
 

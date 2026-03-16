@@ -18,6 +18,11 @@ public class ObstacleSpawner : MonoBehaviour
     public float minObstacleSize = 1f;         // 最小障碍物尺寸
     public float maxObstacleSize = 2.5f;       // 最大障碍物尺寸
 
+    [Header("障碍物伤害")]
+    public float cubeDamage = 25f;
+    public float cylinderDamage = 30f;
+    public float sphereDamage = 20f;
+
     [Header("跑道设置")]
     public float roadWidth = 10f;              // 跑道宽度
     public float roadMargin = 1.5f;            // 边缘留白
@@ -121,8 +126,9 @@ public class ObstacleSpawner : MonoBehaviour
                 collider.isTrigger = true;  // 设置为Trigger模式以确保碰撞检测
             }
             
-            // 添加碰撞检测脚本
-            obstacle.AddComponent<ObstacleCollision>();
+            // 添加碰撞检测脚本并设置伤害
+            ObstacleCollision obstacleCollision = obstacle.AddComponent<ObstacleCollision>();
+            obstacleCollision.damage = GetDamageByType(type);
             
             // 设置材质和颜色
             Renderer renderer = obstacle.GetComponent<Renderer>();
@@ -183,6 +189,20 @@ public class ObstacleSpawner : MonoBehaviour
             }
         }
         activeObstacles.Clear();
+    }
+
+    float GetDamageByType(ObstacleType type)
+    {
+        switch (type)
+        {
+            case ObstacleType.Cylinder:
+                return Mathf.Max(0f, cylinderDamage);
+            case ObstacleType.Sphere:
+                return Mathf.Max(0f, sphereDamage);
+            case ObstacleType.Cube:
+            default:
+                return Mathf.Max(0f, cubeDamage);
+        }
     }
 }
 

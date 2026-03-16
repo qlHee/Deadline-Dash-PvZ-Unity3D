@@ -14,7 +14,6 @@ public class RoadGenerator : MonoBehaviour
     [Header("材质设置")]
     public Material roadMaterial;
     public Material wallMaterial;
-
     private Transform playerTransform;
     private List<GameObject> activeRoads = new List<GameObject>();
     private float lastRoadEndZ = 0f;
@@ -28,6 +27,7 @@ public class RoadGenerator : MonoBehaviour
         {
             SpawnRoadSegment();
         }
+		
     }
 
     void Update()
