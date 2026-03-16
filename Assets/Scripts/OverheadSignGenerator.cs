@@ -91,12 +91,13 @@ public class OverheadSignGenerator : MonoBehaviour
 
         TextMesh textMesh = textObj.AddComponent<TextMesh>();
         textMesh.text =
-            "操作提示\n" +
-            "← / A : 向左\n" +
-            "→ / D : 向右\n" +
-            "↑ / W : 加速\n" +
-            "↓ / S : 减速\n" +
-            "Space : 跳跃";
+            // "操作提示\n" +
+            // "← / A : 向左\n" +
+            // "→ / D : 向右\n" +
+            // "↑ / W : 加速\n" +
+            // "↓ / S : 减速\n" +
+            // "Space : 跳跃";
+            "无尽模式";
         textMesh.color = Color.white;
         textMesh.anchor = TextAnchor.MiddleCenter;
         textMesh.alignment = TextAlignment.Center;

@@ -1507,8 +1507,9 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   target: {fileID: 0}
-  offset: {x: 0, y: 4, z: -1}
+  offset: {x: 0, y: 4, z: -5}
   smoothSpeed: 5
+  zAxisSmoothSpeed: 15
   lookAtTarget: 1
   useFixedAngle: 1
   fixedRotation: {x: 20, y: 0, z: 0}
@@ -1748,12 +1749,44 @@ MonoBehaviour:
   despawnDistance: 30
   safeZoneDistance: 20
   minObstacleDistance: 10
-  maxObstacleDistance: 30
-  minObstacleSize: 1.2
-  maxObstacleSize: 2.8
-  cubeDamage: 25
+  maxObstacleDistance: 25
+  cylinderSize: 1.5
   cylinderDamage: 30
-  sphereDamage: 20
+  peashooterDamage: 37
+  peaProjectileHeight: 1.2
+  peaProjectileDamage: 27
+  peashooterScale: 1.5
+  peashooterModel: {fileID: 3583845639062070436, guid: 92d6dd85eab5dcd4984b3e0ae8d59718, type: 3}
+  iceShooterDamage: 37
+  iceShooterScale: 1.5
+  iceShooterModel: {fileID: 919132149155446097, guid: 47a3ce14896094f5dae54e61b6889fb2, type: 3}
+  doubleShooterDamage: 37
+  doubleShooterScale: 1.5
+  doubleShooterModel: {fileID: 919132149155446097, guid: 9a046712b6e575c4fb87106cd0d2acdd, type: 3}
+  tripleShooterDamage: 37
+  tripleShooterScale: 1.5
+  tripleShooterModel: {fileID: 6848745865560512634, guid: 181007dd340207d428601009bd2a97dd, type: 3}
+  fireStumpDamage: 17
+  fireStumpScale: 1.5
+  fireStumpBurningTime: 3
+  fireStumpBurningDamage: 5
+  fireStumpModel: {fileID: 5837284085041317778, guid: 28eb9ae556eb0e34bb5300f8471d34ef, type: 3}
+  nutDamage: 37
+  nutScale: 1.5
+  nutModel: {fileID: 8422072287839438927, guid: ce26dcddd2ee16c4396d0c8d332f875f, type: 3}
+  tallNutDamage: 37
+  tallNutScale: 2.5
+  tallNutModel: {fileID: 5447531921367381704, guid: 5749f29f53eed1e41a824665f2e21aee, type: 3}
+  cattailShooterDamage: 47
+  cattailShooterScale: 1.5
+  cattailProjectileDamage: 27
+  cattailShooterModel: {fileID: 2203221508629487730, guid: 95faa3aa9203f94448b6584a673f9042, type: 3}
+  cactusDamage: 47
+  cactusScale: 1.5
+  cactusProjectileDamage: 27
+  cactusSpikeHeight: 2.5
+  cactusModel: {fileID: 2939014079497518546, guid: 278d1f690c4260a4098f0baf88ca42de, type: 3}
+  spikeProjectileDamage: 27
   roadWidth: 10
   roadMargin: 1.5
   useLaneSpawning: 1
@@ -1764,12 +1797,7 @@ MonoBehaviour:
   maxFreeformPerRow: 2
   minFreeformSpacing: 1.5
   obstaclePrefabs:
-  - {fileID: 2939014079497518546, guid: 278d1f690c4260a4098f0baf88ca42de, type: 3}
-  - {fileID: 6218570124448689221, guid: f17f4e860d73675498dcfa79d60fbd3c, type: 3}
-  - {fileID: 3583845639062070436, guid: 92d6dd85eab5dcd4984b3e0ae8d59718, type: 3}
-  - {fileID: 8422072287839438927, guid: ce26dcddd2ee16c4396d0c8d332f875f, type: 3}
-  - {fileID: 456855325980734887, guid: 928b2a3e969b45b47a35977f0356e172, type: 3}
-  - {fileID: 7495689723596619251, guid: 39f2c46e19ec9f0438fe7fd2ae9caab4, type: 3}
+  - {fileID: 148032920107633325, guid: 0104217132f20ec48b01eab9747a2c47, type: 3}
   prefabScale: {x: 1, y: 1, z: 1}
   autoAddCollider: 1
   forceTriggerCollider: 1
@@ -1899,7 +1927,7 @@ MonoBehaviour:
   groundLayerMask:
     serializedVersion: 2
     m_Bits: 4294967295
-  maxHealth: 100
+  maxHealth: 400
   regenDelay: 3
   regenRate: 15
 --- !u!136 &1481651134

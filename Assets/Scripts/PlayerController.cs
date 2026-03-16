@@ -40,6 +40,17 @@ public class PlayerController : MonoBehaviour
     private const float obstacleDamageCooldown = 0.2f;
     private float targetLaneX;
 
+    [Header("减速效果")]
+    private bool isSlowed = false;
+    private float slowEndTime = 0f;
+    private float speedMultiplier = 1f;
+
+    [Header("燃烧效果")]
+    private bool isBurning = false;
+    private float burningEndTime = 0f;
+    private float burningDamagePerSecond = 5f;
+    private float lastBurningDamageTime = 0f;
+
     private Rigidbody rb;
     private Collider bodyCollider;
     private float verticalVelocity = 0f;
@@ -89,6 +100,8 @@ public class PlayerController : MonoBehaviour
             jumpRequestTime = Time.time;
         }
 
+        UpdateSlowEffect();
+        UpdateBurningEffect();
         HandleHealthRegen();
         UpdateDistanceTravelled();
     }
@@ -128,6 +141,8 @@ public class PlayerController : MonoBehaviour
         {
             targetSpeed = forwardSpeed;
         }
+
+        targetSpeed *= speedMultiplier;
 
         float sourceSpeed = Mathf.Abs(rb.velocity.z) > 0.01f ? rb.velocity.z : forwardSpeed;
         float currentSpeed = Mathf.Lerp(sourceSpeed, targetSpeed, deltaTime * speedChangeRate);
@@ -237,6 +252,17 @@ public class PlayerController : MonoBehaviour
     {
         if (other.CompareTag("Obstacle"))
         {
+            FireStump fireStump = other.GetComponent<FireStump>();
+            if (fireStump != null)
+            {
+                if (!IsGameOver())
+                {
+                    TakeDamage(fireStump.damage);
+                    ApplyBurningEffect(fireStump.burningDuration, fireStump.burningDamagePerSecond);
+                }
+                return;
+            }
+            
             ApplyObstacleCollision(other.gameObject);
         }
     }
@@ -348,5 +374,53 @@ public class PlayerController : MonoBehaviour
     public float GetMaxHealth()
     {
         return maxHealth;
+    }
+
+    public void ApplySlowEffect(float duration, float slowMultiplier)
+    {
+        isSlowed = true;
+        slowEndTime = Time.time + duration;
+        speedMultiplier = Mathf.Clamp01(slowMultiplier);
+        Debug.Log($"[减速效果] 速度倍率: {speedMultiplier:F2}x, 持续时间: {duration}秒");
+    }
+
+    void UpdateSlowEffect()
+    {
+        if (isSlowed && Time.time >= slowEndTime)
+        {
+            isSlowed = false;
+            speedMultiplier = 1f;
+            Debug.Log("[减速效果] 速度已恢复正常");
+        }
+    }
+
+    public void ApplyBurningEffect(float duration, float damagePerSecond)
+    {
+        isBurning = true;
+        burningEndTime = Time.time + duration;
+        burningDamagePerSecond = damagePerSecond;
+        lastBurningDamageTime = Time.time;
+        Debug.Log($"[燃烧效果] 持续时间: {duration}秒, 每秒伤害: {damagePerSecond}");
+    }
+
+    void UpdateBurningEffect()
+    {
+        if (!isBurning)
+        {
+            return;
+        }
+
+        if (Time.time >= burningEndTime)
+        {
+            isBurning = false;
+            Debug.Log("[燃烧效果] 燃烧结束");
+            return;
+        }
+
+        if (Time.time - lastBurningDamageTime >= 1f)
+        {
+            lastBurningDamageTime = Time.time;
+            TakeDamage(burningDamagePerSecond);
+        }
     }
 }
