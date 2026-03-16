@@ -139,9 +139,11 @@ public class CherryBomb : MonoBehaviour
             float distance = Vector3.Distance(transform.position, player.transform.position);
             if (distance <= explosionRadius)
             {
-                player.TakeDamage(explosionDamage);
-                // 樱桃炸弹爆炸属于高温状态，应用燃烧效果
-                player.ApplyBurningEffect(3f, 5f);
+                if (player.TakeDamage(explosionDamage, DamageType.Fire))
+                {
+                    // 樱桃炸弹爆炸属于高温状态，应用燃烧效果
+                    player.ApplyBurningEffect(3f, 5f);
+                }
             }
         }
         

@@ -26,7 +26,7 @@ public class Nut : MonoBehaviour
             PlayerController player = other.GetComponent<PlayerController>();
             if (player != null && !player.IsGameOver())
             {
-                player.TakeDamage(damage);
+                player.TakeDamage(damage, DamageType.Normal);
                 hasHit = true;
                 
                 // 禁用碰撞体

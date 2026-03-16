@@ -124,6 +124,58 @@ public class ObstacleSpawner : MonoBehaviour
     [Header("尖刺子弹")]
     public float spikeProjectileDamage = 27f;
     public GameObject spikeProjectileModel;
+    [Header("回血向日葵")]
+    public float sunflowerHealAmount = 35f;
+    public float sunflowerScale = 1.5f;
+    public float sunflowerRotateSpeed = 0f;
+    public Vector3 sunflowerVisualOffset = Vector3.zero;
+    public Vector3 sunflowerIdleEffectOffset = Vector3.zero;
+    public Vector3 sunflowerIdleEffectScale = Vector3.one;
+    public Vector3 sunflowerCollectEffectOffset = Vector3.zero;
+    public GameObject sunflowerModel;
+    public Vector3 sunflowerModelRotation = Vector3.zero;
+    public GameObject sunflowerIdleEffect;
+    public GameObject sunflowerCollectEffect;
+    [Header("护盾拾取")]
+    public float shieldPickupScale = 1.2f;
+    public float shieldDuration = 8f;
+    public float shieldRotateSpeed = 30f;
+    public Vector3 shieldRotationAxis = Vector3.up;
+    public Vector3 shieldVisualOffset = Vector3.zero;
+    public Vector3 shieldModelRotation = Vector3.zero;
+    public Vector3 shieldModelScale = Vector3.one;
+    public Vector3 shieldIdleEffectOffset = Vector3.zero;
+    public Vector3 shieldPickupEffectOffset = Vector3.zero;
+    public GameObject normalShieldModel;
+    public GameObject fireShieldModel;
+    public GameObject iceShieldModel;
+    public GameObject normalShieldIdleEffect;
+    public GameObject fireShieldIdleEffect;
+    public GameObject iceShieldIdleEffect;
+    public GameObject shieldPickupEffectPrefab;
+    public Color normalShieldColor = new Color(1f, 0.85f, 0.2f, 0.8f);
+    public Color fireShieldColor = new Color(1f, 0.45f, 0.2f, 0.8f);
+    public Color iceShieldColor = new Color(0.4f, 0.8f, 1f, 0.8f);
+    [Header("跳跃增益拾取")]
+    public float jumpPickupScale = 1.2f;
+    public float jumpBoostDuration = 8f;
+    public float jumpBoostMultiplier = 5f;
+    public float jumpRotateSpeed = 40f;
+    public Vector3 jumpVisualOffset = Vector3.zero;
+    public Vector3 jumpIdleEffectOffset = Vector3.zero;
+    public Vector3 jumpPickupEffectOffset = Vector3.zero;
+    public GameObject jumpPickupModel;
+    public GameObject jumpPickupIdleEffect;
+    public GameObject jumpPickupCollectEffect;
+    public GameObject jumpPickupPlayerEffect;
+    public float jumpPlayerEffectLifetime = 1f;
+    public Vector3 jumpPlayerEffectOffset = Vector3.zero;
+    [Header("增益拾取控制")]
+    [Range(0f, 1f)] public float supportPickupChance = 0.25f;
+    public float supportPickupMinDistance = 35f;
+    public float sunflowerSpawnWeight = 0.35f;
+    public float shieldSpawnWeight = 0.45f;
+    public float jumpSpawnWeight = 0.2f;
 
     [Header("道路设置")]
     [Tooltip("道路宽度从 RoadGenerator 自动获取")]
@@ -188,6 +240,7 @@ public class ObstacleSpawner : MonoBehaviour
     private float nextSpawnZ = 30f;
     private RoadGenerator roadGenerator;
     private int gridCountX;
+    private float lastSupportSpawnZ = Mathf.NegativeInfinity;
 
     private enum ObstacleType
     {
@@ -203,7 +256,10 @@ public class ObstacleSpawner : MonoBehaviour
         IceMushroom,
         CherryBomb,
         PotatoMine,
-        FirePepper
+        FirePepper,
+        Sunflower,
+        ShieldPickup,
+        JumpBoost
     }
 
     private struct GridPosition
@@ -433,11 +489,25 @@ public class ObstacleSpawner : MonoBehaviour
         Dictionary<int, ObstacleType> currentRowTypes = new Dictionary<int, ObstacleType>();
         int attemptsCount = 0;
         int maxAttempts = obstacleCount * 3; // 限制尝试次数，防止无限循环
+        bool supportSpawnedThisRow = false;
+        bool forceSupportThisRow = ShouldForceSupportPickup();
 
         for (int i = 0; i < obstacleCount && attemptsCount < maxAttempts; attemptsCount++)
         {
             // 先选择障碍物类型
-            ObstacleType type = GetRandomObstacleTypeWithConstraints();
+            ObstacleType type;
+            if (forceSupportThisRow && !supportSpawnedThisRow)
+            {
+                type = GetRandomSupportPickupType();
+            }
+            else
+            {
+                type = GetRandomObstacleTypeWithConstraints();
+            }
+            if (supportSpawnedThisRow && IsSupportPickup(type))
+            {
+                continue;
+            }
             
             // 判断该类型是否不能出现在边缘
             bool excludeEdge = (type == ObstacleType.IceMushroom || type == ObstacleType.Cactus);
@@ -459,6 +529,11 @@ public class ObstacleSpawner : MonoBehaviour
             
             usedGrids.Add(gridPos.gridX);
             currentRowTypes[gridPos.gridX] = type;
+            if (IsSupportPickup(type))
+            {
+                supportSpawnedThisRow = true;
+                lastSupportSpawnZ = gridPos.worldZ;
+            }
             
             recentObstacleHistory.Add(type);
             if (recentObstacleHistory.Count > 10)
@@ -671,9 +746,13 @@ public class ObstacleSpawner : MonoBehaviour
         else if (type == ObstacleType.CherryBomb) size = Mathf.Max(0.1f, cherryBombScale);
         else if (type == ObstacleType.PotatoMine) size = Mathf.Max(0.1f, potatoMineScale);
         else if (type == ObstacleType.FirePepper) size = Mathf.Max(0.1f, 1f);
+        else if (type == ObstacleType.Sunflower) size = Mathf.Max(0.1f, sunflowerScale);
+        else if (type == ObstacleType.ShieldPickup) size = Mathf.Max(0.1f, shieldPickupScale);
+        else if (type == ObstacleType.JumpBoost) size = Mathf.Max(0.1f, jumpPickupScale);
 
         GameObject obstacle = CreateObstacle(type, size);
         if (obstacle == null) return;
+        bool isSupportPickup = IsSupportPickup(type);
 
         obstacle.name = $"Obstacle_{activeObstacles.Count}_Grid{gridPos.gridX}";
         obstacle.transform.SetParent(transform);
@@ -693,10 +772,13 @@ public class ObstacleSpawner : MonoBehaviour
             collider.isTrigger = true;
         }
 
-        TagUtility.TryAssignTag(obstacle, "Obstacle");
+        if (!isSupportPickup)
+        {
+            TagUtility.TryAssignTag(obstacle, "Obstacle");
+        }
 
         // 排除有自己碰撞处理的障碍物：FireStump, Nut, TallNut, FirePepper, Cactus, CattailShooter
-        if (type != ObstacleType.FireStump && type != ObstacleType.Nut && type != ObstacleType.TallNut && 
+        if (!isSupportPickup && type != ObstacleType.FireStump && type != ObstacleType.Nut && type != ObstacleType.TallNut && 
             type != ObstacleType.FirePepper && type != ObstacleType.Cactus && type != ObstacleType.CattailShooter)
         {
             ObstacleCollision obstacleCollision = obstacle.GetComponent<ObstacleCollision>();
@@ -726,7 +808,7 @@ public class ObstacleSpawner : MonoBehaviour
 
     GameObject CreateObstacle(ObstacleType type, float size)
     {
-        bool shouldUsePrefab = obstaclePrefabs != null && obstaclePrefabs.Count > 0 && type != ObstacleType.Peashooter && type != ObstacleType.IceShooter && type != ObstacleType.DoubleShooter && type != ObstacleType.TripleShooter && type != ObstacleType.FireStump && type != ObstacleType.Nut && type != ObstacleType.TallNut && type != ObstacleType.CattailShooter && type != ObstacleType.Cactus && type != ObstacleType.IceMushroom && type != ObstacleType.CherryBomb && type != ObstacleType.PotatoMine && type != ObstacleType.FirePepper;
+        bool shouldUsePrefab = obstaclePrefabs != null && obstaclePrefabs.Count > 0 && type != ObstacleType.Peashooter && type != ObstacleType.IceShooter && type != ObstacleType.DoubleShooter && type != ObstacleType.TripleShooter && type != ObstacleType.FireStump && type != ObstacleType.Nut && type != ObstacleType.TallNut && type != ObstacleType.CattailShooter && type != ObstacleType.Cactus && type != ObstacleType.IceMushroom && type != ObstacleType.CherryBomb && type != ObstacleType.PotatoMine && type != ObstacleType.FirePepper && type != ObstacleType.Sunflower && type != ObstacleType.ShieldPickup && type != ObstacleType.JumpBoost;
         if (shouldUsePrefab)
         {
             GameObject prefab = obstaclePrefabs[Random.Range(0, obstaclePrefabs.Count)];
@@ -777,6 +859,15 @@ public class ObstacleSpawner : MonoBehaviour
                 break;
             case ObstacleType.FirePepper:
                 obstacle = CreateFirePepper(size);
+                break;
+            case ObstacleType.Sunflower:
+                obstacle = CreateSunflowerPickup(size);
+                break;
+            case ObstacleType.ShieldPickup:
+                obstacle = CreateShieldPickup(size);
+                break;
+            case ObstacleType.JumpBoost:
+                obstacle = CreateJumpBoostPickup(size);
                 break;
         }
         return obstacle;
@@ -1626,6 +1717,122 @@ public class ObstacleSpawner : MonoBehaviour
         pepper.transform.localScale = Vector3.one * size;
         return pepper;
     }
+
+    GameObject CreateSunflowerPickup(float size)
+    {
+        GameObject pickup = new GameObject("SunflowerPickup");
+        SunflowerPickup sunflower = pickup.AddComponent<SunflowerPickup>();
+        sunflower.healAmount = Mathf.Max(1f, sunflowerHealAmount);
+        sunflower.visualScale = size;
+        sunflower.visualOffset = sunflowerVisualOffset;
+        sunflower.rotateSpeed = sunflowerRotateSpeed;
+        sunflower.modelRotationOffset = sunflowerModelRotation;
+        sunflower.modelPrefab = sunflowerModel;
+        sunflower.idleEffectPrefab = sunflowerIdleEffect;
+        sunflower.collectEffectPrefab = sunflowerCollectEffect;
+        sunflower.idleEffectOffset = sunflowerIdleEffectOffset;
+        sunflower.idleEffectScale = sunflowerIdleEffectScale;
+        sunflower.collectEffectOffset = sunflowerCollectEffectOffset;
+        sunflower.RebuildVisuals();
+        return pickup;
+    }
+
+    GameObject CreateShieldPickup(float size)
+    {
+        GameObject pickup = new GameObject("ShieldPickup");
+        ShieldPickup shield = pickup.AddComponent<ShieldPickup>();
+        ShieldType type = GetRandomShieldType();
+        shield.shieldType = type;
+        shield.shieldDuration = shieldDuration;
+        shield.visualScale = size;
+        shield.visualOffset = shieldVisualOffset;
+        shield.rotateSpeed = shieldRotateSpeed;
+        shield.rotationAxis = shieldRotationAxis;
+        shield.modelRotationOffset = shieldModelRotation;
+        shield.modelScale = shieldModelScale;
+        shield.pickupEffectPrefab = shieldPickupEffectPrefab;
+        shield.idleEffectOffset = shieldIdleEffectOffset;
+        shield.pickupEffectOffset = shieldPickupEffectOffset;
+
+        switch (type)
+        {
+            case ShieldType.Fire:
+                shield.modelPrefab = fireShieldModel;
+                shield.idleEffectPrefab = fireShieldIdleEffect;
+                shield.fallbackColor = fireShieldColor;
+                break;
+            case ShieldType.Ice:
+                shield.modelPrefab = iceShieldModel;
+                shield.idleEffectPrefab = iceShieldIdleEffect;
+                shield.fallbackColor = iceShieldColor;
+                break;
+            default:
+                shield.modelPrefab = normalShieldModel;
+                shield.idleEffectPrefab = normalShieldIdleEffect;
+                shield.fallbackColor = normalShieldColor;
+                break;
+        }
+        shield.RebuildVisuals();
+        return pickup;
+    }
+
+    GameObject CreateJumpBoostPickup(float size)
+    {
+        GameObject pickup = new GameObject("JumpBoostPickup");
+        JumpBoostPickup jumpPickup = pickup.AddComponent<JumpBoostPickup>();
+        jumpPickup.visualScale = size;
+        jumpPickup.duration = jumpBoostDuration;
+        jumpPickup.jumpMultiplier = jumpBoostMultiplier;
+        jumpPickup.visualOffset = jumpVisualOffset;
+        jumpPickup.rotateSpeed = jumpRotateSpeed;
+        jumpPickup.modelPrefab = jumpPickupModel;
+        jumpPickup.idleEffectPrefab = jumpPickupIdleEffect;
+        jumpPickup.pickupEffectPrefab = jumpPickupCollectEffect;
+        jumpPickup.idleEffectOffset = jumpIdleEffectOffset;
+        jumpPickup.pickupEffectOffset = jumpPickupEffectOffset;
+        jumpPickup.playerPickupEffectPrefab = jumpPickupPlayerEffect;
+        jumpPickup.playerEffectLifetime = jumpPlayerEffectLifetime;
+        jumpPickup.playerEffectOffset = jumpPlayerEffectOffset;
+        jumpPickup.RebuildVisuals();
+        return pickup;
+    }
+
+    bool ShouldForceSupportPickup()
+    {
+        if (supportPickupChance <= 0f)
+        {
+            return false;
+        }
+        if ((nextSpawnZ - lastSupportSpawnZ) < supportPickupMinDistance)
+        {
+            return false;
+        }
+        return Random.value <= supportPickupChance;
+    }
+
+    ObstacleType GetRandomSupportPickupType()
+    {
+        float sunflowerWeight = Mathf.Max(0f, sunflowerSpawnWeight);
+        float shieldWeight = Mathf.Max(0f, shieldSpawnWeight);
+        float jumpWeight = Mathf.Max(0f, jumpSpawnWeight);
+        float total = sunflowerWeight + shieldWeight + jumpWeight;
+        if (total <= Mathf.Epsilon)
+        {
+            return ObstacleType.ShieldPickup;
+        }
+
+        float roll = Random.value * total;
+        if (roll < sunflowerWeight)
+        {
+            return ObstacleType.Sunflower;
+        }
+        roll -= sunflowerWeight;
+        if (roll < shieldWeight)
+        {
+            return ObstacleType.ShieldPickup;
+        }
+        return ObstacleType.JumpBoost;
+    }
     
     GameObject CreateCherryBomb(float size)
     {
@@ -1764,6 +1971,24 @@ public class ObstacleSpawner : MonoBehaviour
     }
     
  
+    ShieldType GetRandomShieldType()
+    {
+        ShieldType[] pool = new ShieldType[]
+        {
+            ShieldType.Normal,
+            ShieldType.Fire,
+            ShieldType.Ice
+        };
+        return pool[Random.Range(0, pool.Length)];
+    }
+
+    bool IsSupportPickup(ObstacleType type)
+    {
+        return type == ObstacleType.Sunflower ||
+               type == ObstacleType.ShieldPickup ||
+               type == ObstacleType.JumpBoost;
+    }
+
     void RemoveChildColliders(GameObject root)
     {
         if (root == null) return;
@@ -1839,10 +2064,15 @@ public class ObstacleSpawner : MonoBehaviour
                 }
             }
 
-            if (occurrenceCount < maxOccurrencesInTen)
+            if (occurrenceCount >= maxOccurrencesInTen)
             {
-                availableTypes.Add(type);
+                continue;
             }
+            if (IsSupportPickup(type) && occurrenceCount >= 2)
+            {
+                continue;
+            }
+            availableTypes.Add(type);
         }
 
         if (availableTypes.Count == 0)
@@ -1864,6 +2094,10 @@ public class ObstacleSpawner : MonoBehaviour
             {
                 // 计算此类型障碍物应添加的次数（即权重）
                 float weight = difficultyLevelWeights[difficultyLevel] * 10f; // 乘以10转换为整数范围
+                if (IsSupportPickup(type))
+                {
+                    weight *= 0.3f;
+                }
                 int weightCount = Mathf.RoundToInt(weight);
 
                 // 至少添加一次，确保所有类型都有被选中的机会
@@ -1946,6 +2180,9 @@ public class ObstacleSpawner : MonoBehaviour
             case ObstacleType.IceShooter:
             case ObstacleType.Nut:
             case ObstacleType.PotatoMine:
+            case ObstacleType.Sunflower:
+            case ObstacleType.ShieldPickup:
+            case ObstacleType.JumpBoost:
                 return 1;
                 
             // 难度等级2（中等）
@@ -2022,6 +2259,18 @@ public class ObstacleSpawner : MonoBehaviour
         else if (type == ObstacleType.PotatoMine)
         {
             return Mathf.Max(0.25f, potatoMineScale * 0.5f);
+        }
+        else if (type == ObstacleType.Sunflower)
+        {
+            return Mathf.Max(0.25f, sunflowerScale * 0.5f);
+        }
+        else if (type == ObstacleType.ShieldPickup)
+        {
+            return Mathf.Max(0.25f, shieldPickupScale * 0.5f);
+        }
+        else if (type == ObstacleType.JumpBoost)
+        {
+            return Mathf.Max(0.25f, jumpPickupScale * 0.5f);
         }
         return Mathf.Max(0.25f, estimatedHalfWidth);
     }
@@ -2141,6 +2390,10 @@ public class ObstacleSpawner : MonoBehaviour
                 return Mathf.Max(0f, firePepperExplosionDamage);
             case ObstacleType.PotatoMine:
                 return Mathf.Max(0f, potatoMineDamage);
+            case ObstacleType.Sunflower:
+            case ObstacleType.ShieldPickup:
+            case ObstacleType.JumpBoost:
+                return 0f;
             default:
                 return 30f; // 默认伤害值
         }

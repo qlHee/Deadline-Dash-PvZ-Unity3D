@@ -66,7 +66,7 @@ public class SpikeProjectile : MonoBehaviour
                 return;
             }
 
-            player.TakeDamage(damage);
+            player.TakeDamage(damage, DamageType.Normal);
             Destroy(gameObject);
         }
         else if (other.GetComponent<Nut>() != null || other.GetComponent<TallNut>() != null)

@@ -69,8 +69,8 @@ public class PeaProjectile : MonoBehaviour
                 return;
             }
 
-            player.TakeDamage(damage);
-            if (isBurning)
+            bool damaged = player.TakeDamage(damage, isBurning ? DamageType.Fire : DamageType.Normal);
+            if (damaged && isBurning)
             {
                 player.ApplyBurningEffect(burningDurationForPlayer, burningDamagePerSecondForPlayer);
             }

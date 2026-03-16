@@ -161,7 +161,7 @@ public class CattailShooter : MonoBehaviour
             PlayerController playerController = other.GetComponent<PlayerController>();
             if (playerController != null && !playerController.IsGameOver())
             {
-                playerController.TakeDamage(damage);
+                playerController.TakeDamage(damage, DamageType.Normal);
                 hasHit = true;
                 
                 // 禁用碰撞体

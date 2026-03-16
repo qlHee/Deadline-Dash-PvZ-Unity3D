@@ -68,8 +68,11 @@ public class IcePeaProjectile : MonoBehaviour
                 return;
             }
 
-            player.TakeDamage(damage);
-            player.ApplySlowEffect(slowDuration, slowMultiplier);
+            bool damaged = player.TakeDamage(damage, DamageType.Ice);
+            if (damaged)
+            {
+                player.ApplySlowEffect(slowDuration, slowMultiplier);
+            }
             Destroy(gameObject);
         }
         else if (other.GetComponent<Nut>() != null || other.GetComponent<TallNut>() != null)

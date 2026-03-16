@@ -29,7 +29,7 @@ public class ObstacleCollision : MonoBehaviour
         PlayerController player = other.GetComponent<PlayerController>();
         if (player != null)
         {
-            player.ApplyObstacleDamage(damage);
+            player.ApplyObstacleDamage(damage, DamageType.Normal);
         }
 
         hasHit = true;

@@ -1,4 +1,20 @@
-﻿using UnityEngine;
+using UnityEngine;
+
+public enum DamageType
+{
+    Normal,
+    Fire,
+    Ice
+}
+
+public enum ShieldType
+{
+    None,
+    Normal,
+    Fire,
+    Ice
+}
+
 
 [RequireComponent(typeof(Rigidbody))]
 public class PlayerController : MonoBehaviour
@@ -63,6 +79,28 @@ public class PlayerController : MonoBehaviour
     public Vector3 burningEffectOffset = new Vector3(0f, 0.2f, 0f);
     private GameObject burningEffectInstance;
 
+    [Header("护盾设置")]
+    public float defaultShieldDuration = 8f;
+    public Transform shieldEffectAnchor;
+    public Vector3 shieldEffectOffset = Vector3.zero;
+    public Vector3 shieldEffectRotationOffset = Vector3.zero;
+    public GameObject normalShieldEffectPrefab;
+    public GameObject fireShieldEffectPrefab;
+    public GameObject iceShieldEffectPrefab;
+    public GameObject shieldBreakEffectPrefab;
+    public Vector3 shieldEffectScale = Vector3.one;
+
+    [Header("回血特效")]
+    public GameObject healEffectPrefab;
+    public float healEffectLifetime = 2f;
+    public Vector3 healEffectOffset = new Vector3(0f, 0.6f, 0f);
+
+    [Header("跳跃增益")]
+    public GameObject jumpBoostEffectPrefab;
+    public Vector3 jumpBoostEffectOffset = new Vector3(0f, 0.2f, 0f);
+    public float fallbackJumpBoostDuration = 8f;
+    public float defaultJumpBoostMultiplier = 5f;
+
     [Header("动画")]
     [SerializeField] private Animator animator;
     [SerializeField] private float walkSpeedThreshold = 7f;
@@ -104,6 +142,14 @@ public class PlayerController : MonoBehaviour
     private float verticalVelocity = 0f;
     private bool isGrounded = true;
     private float jumpRequestTime = Mathf.NegativeInfinity;
+    private ShieldType activeShield = ShieldType.None;
+    private float shieldExpireTime = 0f;
+    private GameObject shieldEffectInstance;
+    private ShieldType shieldEffectType = ShieldType.None;
+    private float jumpForceMultiplier = 1f;
+    private bool isJumpBoostActive = false;
+    private float jumpBoostEndTime = 0f;
+    private GameObject jumpBoostEffectInstance;
 
     private const float defaultObstacleDamage = 25f;
 
@@ -142,6 +188,7 @@ public class PlayerController : MonoBehaviour
         lastPosition = transform.position;
         currentHealth = maxHealth;
         targetLaneX = transform.position.x;
+        jumpForceMultiplier = 1f;
     }
 
     void Update()
@@ -186,6 +233,8 @@ public class PlayerController : MonoBehaviour
         UpdateSlowEffect();
         UpdateFrozenEffect();
         UpdateBurningEffect();
+        UpdateShieldState();
+        UpdateJumpBoostState();
         HandleHealthRegen();
         UpdateDistanceTravelled();
     }
@@ -268,7 +317,7 @@ public class PlayerController : MonoBehaviour
 
             if (jumpBuffered)
             {
-                verticalVelocity = jumpForce;
+                verticalVelocity = jumpForce * Mathf.Max(1f, jumpForceMultiplier);
                 groundedNow = false;
                 jumpRequestTime = Mathf.NegativeInfinity;
                 TriggerJumpAnimation();
@@ -352,8 +401,10 @@ public class PlayerController : MonoBehaviour
             {
                 if (!IsGameOver())
                 {
-                    TakeDamage(fireStump.damage);
-                    ApplyBurningEffect(fireStump.burningDuration, fireStump.burningDamagePerSecond);
+                    if (TakeDamage(fireStump.damage, DamageType.Fire))
+                    {
+                        ApplyBurningEffect(fireStump.burningDuration, fireStump.burningDamagePerSecond);
+                    }
                 }
                 return;
             }
@@ -371,7 +422,7 @@ public class PlayerController : MonoBehaviour
 
         lastObstacleDamageTime = Time.time;
         float damage = GetObstacleDamage(obstacleObj);
-        TakeDamage(damage);
+        TakeDamage(damage, DamageType.Normal);
     }
 
     float GetObstacleDamage(GameObject obstacleObj)
@@ -401,11 +452,34 @@ public class PlayerController : MonoBehaviour
         currentHealth = Mathf.Min(maxHealth, currentHealth + regenRate * Time.deltaTime);
     }
 
-    public void TakeDamage(float damageAmount)
+    public bool RestoreHealth(float healAmount)
+    {
+        if (isGameOver || healAmount <= 0f)
+        {
+            return false;
+        }
+
+        float previousHealth = currentHealth;
+        currentHealth = Mathf.Min(maxHealth, currentHealth + healAmount);
+        if (currentHealth > previousHealth)
+        {
+            SpawnHealEffect();
+            return true;
+        }
+        return false;
+    }
+
+    public bool TakeDamage(float damageAmount, DamageType damageType = DamageType.Normal)
     {
         if (isGameOver || damageAmount <= 0f)
         {
-            return;
+            return false;
+        }
+
+        if (IsShieldBlockingDamage(damageType))
+        {
+            ConsumeShield(true);
+            return false;
         }
 
         currentHealth = Mathf.Max(0f, currentHealth - damageAmount);
@@ -415,16 +489,17 @@ public class PlayerController : MonoBehaviour
         {
             GameOver();
         }
+        return true;
     }
 
-    public void ApplyObstacleDamage(float damage)
+    public bool ApplyObstacleDamage(float damage, DamageType damageType = DamageType.Normal)
     {
         if (Time.time - lastObstacleDamageTime < obstacleDamageCooldown)
         {
-            return;
+            return false;
         }
         lastObstacleDamageTime = Time.time;
-        TakeDamage(damage);
+        return TakeDamage(damage, damageType);
     }
 
     void GameOver()
@@ -432,6 +507,10 @@ public class PlayerController : MonoBehaviour
         if (isGameOver) return;
         
         isGameOver = true;
+        ConsumeShield(false);
+        DestroyJumpBoostEffect();
+        jumpForceMultiplier = 1f;
+        isJumpBoostActive = false;
         Debug.Log("游戏结束：调用 GameOver()");
         
         GameManager gameManager = FindObjectOfType<GameManager>();
@@ -449,6 +528,186 @@ public class PlayerController : MonoBehaviour
     public bool IsGameOver()
     {
         return isGameOver;
+    }
+
+    bool IsShieldBlockingDamage(DamageType damageType)
+    {
+        if (activeShield == ShieldType.None)
+        {
+            return false;
+        }
+
+        if (Time.time >= shieldExpireTime)
+        {
+            ConsumeShield(false);
+            return false;
+        }
+
+        switch (activeShield)
+        {
+            case ShieldType.Normal:
+                return damageType == DamageType.Normal;
+            case ShieldType.Fire:
+                return damageType == DamageType.Fire || damageType == DamageType.Normal;
+            case ShieldType.Ice:
+                return damageType == DamageType.Ice || damageType == DamageType.Normal;
+            default:
+                return false;
+        }
+    }
+
+    void ConsumeShield(bool spawnBreakFx)
+    {
+        DestroyShieldEffect(spawnBreakFx);
+        activeShield = ShieldType.None;
+        shieldExpireTime = 0f;
+    }
+
+    void DestroyShieldEffect(bool spawnBreakFx)
+    {
+        if (shieldEffectInstance != null)
+        {
+            Vector3 pos = shieldEffectInstance.transform.position;
+            Quaternion rot = shieldEffectInstance.transform.rotation;
+            Destroy(shieldEffectInstance);
+            shieldEffectInstance = null;
+            if (spawnBreakFx && shieldBreakEffectPrefab != null)
+            {
+                GameObject fx = Instantiate(shieldBreakEffectPrefab, pos, rot);
+                Destroy(fx, 3f);
+            }
+        }
+        shieldEffectType = ShieldType.None;
+    }
+
+    void RefreshShieldEffect()
+    {
+        DestroyShieldEffect(false);
+        if (activeShield == ShieldType.None)
+        {
+            return;
+        }
+
+        GameObject prefab = GetShieldEffectPrefab(activeShield);
+        if (prefab == null)
+        {
+            return;
+        }
+
+        Transform anchor = shieldEffectAnchor != null ? shieldEffectAnchor : transform;
+        Vector3 worldPos = anchor.position + anchor.TransformVector(shieldEffectOffset);
+        Quaternion worldRot = anchor.rotation * Quaternion.Euler(shieldEffectRotationOffset);
+        shieldEffectInstance = Instantiate(prefab, worldPos, worldRot, anchor);
+        if (shieldEffectInstance != null)
+        {
+            Vector3 originalScale = shieldEffectInstance.transform.localScale;
+            Vector3 scaleMultiplier = new Vector3(
+                shieldEffectScale.x != 0f ? shieldEffectScale.x : 1f,
+                shieldEffectScale.y != 0f ? shieldEffectScale.y : 1f,
+                shieldEffectScale.z != 0f ? shieldEffectScale.z : 1f
+            );
+            shieldEffectInstance.transform.localScale = Vector3.Scale(originalScale, scaleMultiplier);
+        }
+        shieldEffectType = activeShield;
+    }
+
+    GameObject GetShieldEffectPrefab(ShieldType type)
+    {
+        switch (type)
+        {
+            case ShieldType.Fire:
+                return fireShieldEffectPrefab;
+            case ShieldType.Ice:
+                return iceShieldEffectPrefab;
+            case ShieldType.Normal:
+                return normalShieldEffectPrefab;
+            default:
+                return null;
+        }
+    }
+
+    void UpdateShieldState()
+    {
+        if (activeShield == ShieldType.None)
+        {
+            DestroyShieldEffect(false);
+            return;
+        }
+
+        if (Time.time >= shieldExpireTime)
+        {
+            ConsumeShield(false);
+        }
+        else if (shieldEffectInstance == null || shieldEffectType != activeShield)
+        {
+            RefreshShieldEffect();
+        }
+    }
+
+    public void ActivateShield(ShieldType type, float duration)
+    {
+        if (type == ShieldType.None || isGameOver)
+        {
+            return;
+        }
+
+        float finalDuration = duration > 0f ? duration : defaultShieldDuration;
+        activeShield = type;
+        shieldExpireTime = Time.time + finalDuration;
+        RefreshShieldEffect();
+    }
+
+    public void ApplyJumpBoost(float duration, float multiplier)
+    {
+        if (isGameOver)
+        {
+            return;
+        }
+
+        float finalDuration = duration > 0f ? duration : fallbackJumpBoostDuration;
+        float finalMultiplier = multiplier > 0f ? multiplier : defaultJumpBoostMultiplier;
+        jumpForceMultiplier = Mathf.Max(1f, finalMultiplier);
+        jumpBoostEndTime = Time.time + Mathf.Max(0.1f, finalDuration);
+        isJumpBoostActive = true;
+        SpawnJumpBoostEffect();
+    }
+
+    void UpdateJumpBoostState()
+    {
+        if (!isJumpBoostActive)
+        {
+            return;
+        }
+
+        if (Time.time >= jumpBoostEndTime)
+        {
+            isJumpBoostActive = false;
+            jumpForceMultiplier = 1f;
+            DestroyJumpBoostEffect();
+        }
+    }
+
+    void SpawnJumpBoostEffect()
+    {
+        if (jumpBoostEffectPrefab == null)
+        {
+            return;
+        }
+
+        DestroyJumpBoostEffect();
+        Transform anchor = groundCheck != null ? groundCheck : transform;
+        Vector3 worldPos = anchor.position + anchor.TransformVector(jumpBoostEffectOffset);
+        jumpBoostEffectInstance = Instantiate(jumpBoostEffectPrefab, worldPos, transform.rotation, transform);
+        jumpBoostEffectInstance.transform.SetParent(transform, true);
+    }
+
+    void DestroyJumpBoostEffect()
+    {
+        if (jumpBoostEffectInstance != null)
+        {
+            Destroy(jumpBoostEffectInstance);
+            jumpBoostEffectInstance = null;
+        }
     }
 
     public float GetForwardSpeed()
@@ -699,7 +958,7 @@ public class PlayerController : MonoBehaviour
         if (Time.time - lastBurningDamageTime >= 1f)
         {
             lastBurningDamageTime = Time.time;
-            TakeDamage(burningDamagePerSecond);
+            TakeDamage(burningDamagePerSecond, DamageType.Fire);
         }
     }
 
@@ -848,6 +1107,18 @@ public class PlayerController : MonoBehaviour
         if (lifetime > 0f)
         {
             Destroy(fx, lifetime);
+        }
+    }
+
+    void SpawnHealEffect()
+    {
+        if (healEffectPrefab == null) return;
+        Vector3 pos = transform.position + transform.TransformVector(healEffectOffset);
+        GameObject fx = Instantiate(healEffectPrefab, pos, transform.rotation);
+        fx.transform.SetParent(transform, true);
+        if (healEffectLifetime > 0f)
+        {
+            Destroy(fx, healEffectLifetime);
         }
     }
 

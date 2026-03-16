@@ -50,15 +50,18 @@ public class IceMushroom : MonoBehaviour
                 hasTriggered = true;
                 
                 // 应用伤害
-                player.TakeDamage(damage);
+                bool damaged = player.TakeDamage(damage, DamageType.Ice);
                 SpawnEffect(mushroomEffectPrefab, transform, mushroomEffectLifetime);
                 SpawnEffect(mushroomEffectPrefab2, transform, mushroomEffectLifetime2);
                 
-                // 创建冻结效果
-                // 确保初始化 FrozenEffect 并调用冻结方法
-                FrozenEffect.Instance.freezeScreenColor = freezeScreenColor;
-                FrozenEffect.Instance.ApplyFreezeEffect(player, freezeDuration);
-                SpawnPlayerEffect(player.transform, playerEffectLifetime);
+                if (damaged)
+                {
+                    // 创建冻结效果
+                    // 确保初始化 FrozenEffect 并调用冻结方法
+                    FrozenEffect.Instance.freezeScreenColor = freezeScreenColor;
+                    FrozenEffect.Instance.ApplyFreezeEffect(player, freezeDuration);
+                    SpawnPlayerEffect(player.transform, playerEffectLifetime);
+                }
             }
         }
     }

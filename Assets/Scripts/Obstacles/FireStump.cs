@@ -14,8 +14,10 @@ public class FireStump : MonoBehaviour
             PlayerController player = other.GetComponent<PlayerController>();
             if (player != null && !player.IsGameOver())
             {
-                player.TakeDamage(damage);
-                player.ApplyBurningEffect(burningDuration, burningDamagePerSecond);
+                if (player.TakeDamage(damage, DamageType.Fire))
+                {
+                    player.ApplyBurningEffect(burningDuration, burningDamagePerSecond);
+                }
             }
         }
         else if (other.CompareTag("Obstacle"))
