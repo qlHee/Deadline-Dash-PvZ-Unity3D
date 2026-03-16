@@ -1796,13 +1796,45 @@ MonoBehaviour:
   iceMushroomScale: 1.2
   iceMushroomFreezeDuration: 2
   iceMushroomModel: {fileID: 1499933007296995628, guid: ad49aa2504317b744bb17f25c0625439, type: 3}
+  iceMushroomSelfEffectPrefab: {fileID: 140866, guid: e1058fc030688db448faf54f4fdaabb6, type: 3}
+  iceMushroomSelfEffectLifetime: 2.1
+  iceMushroomSelfEffectPrefab2: {fileID: 161422, guid: 02b55b1514278964187c93c0b09a3dc4, type: 3}
+  iceMushroomSelfEffectLifetime2: 2
+  iceMushroomPlayerEffectPrefab: {fileID: 100002, guid: a76556efae614b249ae3bb11e76668ac, type: 3}
+  iceMushroomPlayerEffectLifetime: 1.95
+  potatoMineDamage: 40
+  potatoMineScale: 1
+  potatoMineActivationDistance: 13
+  potatoMineDeactivationDistance: 10
+  potatoMineBuriedHeightRatio: 0.66
+  potatoMineAscendSpeed: 3
+  potatoMineDescendSpeed: 3
+  potatoMinePrefab: {fileID: 456855325980734887, guid: 928b2a3e969b45b47a35977f0356e172, type: 3}
+  potatoMineTriggerEffectPrefab: {fileID: 1000012903210382, guid: 77fc1d5b961f93440b99518195a35401, type: 3}
+  firePepperTriggerRadius: 35
+  firePepperGrowDuration: 0.3
+  firePepperMaxScaleMultiplier: 1.3
+  firePepperWobbleDuration: 0.15
+  firePepperWobbleMagnitude: 0.1
+  firePepperExplosionDamage: 10
+  firePepperBurnDuration: 3
+  firePepperBurnDamagePerSecond: 30
+  firePepperBurnHeight: 0.5
+  firePepperVerticalLength: 25
+  firePepperVerticalWidth: 1.79
+  firePepperHorizontalWidth: 12
+  firePepperHorizontalDepth: 3
+  firePepperPrefab: {fileID: 6848745865560512634, guid: 181007dd340207d428601009bd2a97dd, type: 3}
+  firePepperEffectPrefab: {fileID: 100000, guid: a19793b518164f1469463ee4c081439c, type: 3}
+  firePepperEffectLifetime: 3
+  firePepperAutoScaleEffect: 1
   cherryBombDamage: 47
   cherryBombScale: 1.2
   cherryBombTriggerRadius: 20
   cherryBombExplosionRadius: 10
   cherryBombExplosionDelay: 0.5
   cherryBombModel: {fileID: 2542587934493471455, guid: bc627eb7f9d01f140b28a6df98b154ac, type: 3}
-  explosionEffectPrefab: {fileID: 0}
+  explosionEffectPrefab: {fileID: 100012, guid: 8f71c7ca2b2fa6140a390f9ac4b73a7b, type: 3}
   spikeProjectileDamage: 27
   spikeProjectileModel: {fileID: 919132149155446097, guid: 05bd9f77e215c42a9bb8af0caff1504a, type: 3}
   roadWidth: 12
@@ -1876,8 +1908,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: b5ea504dfc9a64c9299ee819eb7b0f33, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  forwardSpeed: 30
-  maxForwardSpeed: 50
+  forwardSpeed: 26
+  maxForwardSpeed: 43
   minForwardSpeed: 15
   speedChangeRate: 2
   horizontalSpeed: 8
@@ -1899,6 +1931,17 @@ MonoBehaviour:
   animator: {fileID: 0}
   walkSpeedThreshold: 7
   locomotionDampTime: 0.1
+  slideEffectPrefab: {fileID: 111486, guid: f6ac01c8c44430d46815af0e77bdcfdd, type: 3}
+  slideEffectLifetime: 2
+  slideEffectOffset: {x: 0, y: 0.2, z: 1}
+  slideEffectRotationOffset: {x: 0, y: 0, z: 0}
+  slideEffectDelay: 0.3
+  grabEffectPrefab: {fileID: 105246, guid: 305722bc3bbbf1f44aa7890efb7f31d9, type: 3}
+  grabEffectLifetime: 2
+  grabEffectOffset: {x: 0, y: 0.6, z: 0.6}
+  grabEffectRotationOffset: {x: -45, y: 0, z: 45}
+  grabEffectDelay: 0.05
+  frozenTintColor: {r: 0.3, g: 0.65, b: 1, a: 1}
 --- !u!54 &1170565123
 Rigidbody:
   m_ObjectHideFlags: 0
@@ -2177,5 +2220,5 @@ SceneRoots:
   - {fileID: 864580151}
   - {fileID: 1148280238}
   - {fileID: 1489337345}
-  - {fileID: 56306810}
   - {fileID: 246738355}
+  - {fileID: 56306810}

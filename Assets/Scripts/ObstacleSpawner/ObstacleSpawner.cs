@@ -74,6 +74,42 @@ public class ObstacleSpawner : MonoBehaviour
     public float iceMushroomScale = 1.5f;
     public float iceMushroomFreezeDuration = 2f;
     public GameObject iceMushroomModel;
+    public GameObject iceMushroomSelfEffectPrefab;
+    public float iceMushroomSelfEffectLifetime = 2f;
+    public GameObject iceMushroomSelfEffectPrefab2;
+    public float iceMushroomSelfEffectLifetime2 = 2f;
+    public GameObject iceMushroomPlayerEffectPrefab;
+    public float iceMushroomPlayerEffectLifetime = 2f;
+    
+    [Header("土豆地雷")]
+    public float potatoMineDamage = 40f;
+    public float potatoMineScale = 1.2f;
+    public float potatoMineActivationDistance = 8f;
+    public float potatoMineDeactivationDistance = 10f;
+    [Range(0f, 1f)] public float potatoMineBuriedHeightRatio = 0.66f;
+    public float potatoMineAscendSpeed = 2.5f;
+    public float potatoMineDescendSpeed = 3f;
+    public GameObject potatoMinePrefab;
+    public GameObject potatoMineTriggerEffectPrefab;
+    
+    [Header("火爆辣椒")]
+    public float firePepperTriggerRadius = 6f;
+    public float firePepperGrowDuration = 0.8f;
+    public float firePepperMaxScaleMultiplier = 1.6f;
+    public float firePepperWobbleDuration = 0.25f;
+    public float firePepperWobbleMagnitude = 0.1f;
+    public float firePepperExplosionDamage = 50f;
+    public float firePepperBurnDuration = 3f;
+    public float firePepperBurnDamagePerSecond = 12f;
+    public float firePepperBurnHeight = 1.4f;
+    public float firePepperVerticalLength = 8f;
+    public float firePepperVerticalWidth = 1.5f;
+    public float firePepperHorizontalWidth = 12f;
+    public float firePepperHorizontalDepth = 3f;
+    public GameObject firePepperPrefab;
+    public GameObject firePepperEffectPrefab;
+    public float firePepperEffectLifetime = 3f;
+    public bool firePepperAutoScaleEffect = true;
     
     [Header("樱桃炸弹")]
     public float cherryBombDamage = 47f;
@@ -165,7 +201,9 @@ public class ObstacleSpawner : MonoBehaviour
         CattailShooter,
         Cactus,
         IceMushroom,
-        CherryBomb
+        CherryBomb,
+        PotatoMine,
+        FirePepper
     }
 
     private struct GridPosition
@@ -658,6 +696,8 @@ public class ObstacleSpawner : MonoBehaviour
         else if (type == ObstacleType.Cactus) size = Mathf.Max(0.1f, cactusScale);
         else if (type == ObstacleType.IceMushroom) size = Mathf.Max(0.1f, iceMushroomScale);
         else if (type == ObstacleType.CherryBomb) size = Mathf.Max(0.1f, cherryBombScale);
+        else if (type == ObstacleType.PotatoMine) size = Mathf.Max(0.1f, potatoMineScale);
+        else if (type == ObstacleType.FirePepper) size = Mathf.Max(0.1f, 1f);
 
         GameObject obstacle = CreateObstacle(type, size);
         if (obstacle == null) return;
@@ -667,6 +707,12 @@ public class ObstacleSpawner : MonoBehaviour
         obstacle.transform.position = new Vector3(gridPos.worldX, 0f, gridPos.worldZ);
 
         AlignToGround(obstacle);
+        // 如果是土豆地雷，确保地表位置按对齐后的高度初始化
+        PotatoMine mineScript = obstacle.GetComponent<PotatoMine>();
+        if (mineScript != null)
+        {
+            mineScript.InitializePositions(obstacle.transform.position);
+        }
 
         Collider collider = EnsureCollider(obstacle);
         if (collider != null && forceTriggerCollider)
@@ -676,7 +722,7 @@ public class ObstacleSpawner : MonoBehaviour
 
         TagUtility.TryAssignTag(obstacle, "Obstacle");
 
-        if (type != ObstacleType.FireStump && type != ObstacleType.Nut && type != ObstacleType.TallNut)
+        if (type != ObstacleType.FireStump && type != ObstacleType.Nut && type != ObstacleType.TallNut && type != ObstacleType.FirePepper)
         {
             ObstacleCollision obstacleCollision = obstacle.GetComponent<ObstacleCollision>();
             if (obstacleCollision == null)
@@ -705,7 +751,7 @@ public class ObstacleSpawner : MonoBehaviour
 
     GameObject CreateObstacle(ObstacleType type, float size)
     {
-        bool shouldUsePrefab = obstaclePrefabs != null && obstaclePrefabs.Count > 0 && type != ObstacleType.Peashooter && type != ObstacleType.IceShooter && type != ObstacleType.DoubleShooter && type != ObstacleType.TripleShooter && type != ObstacleType.FireStump && type != ObstacleType.Nut && type != ObstacleType.TallNut && type != ObstacleType.CattailShooter && type != ObstacleType.Cactus && type != ObstacleType.IceMushroom && type != ObstacleType.CherryBomb;
+        bool shouldUsePrefab = obstaclePrefabs != null && obstaclePrefabs.Count > 0 && type != ObstacleType.Peashooter && type != ObstacleType.IceShooter && type != ObstacleType.DoubleShooter && type != ObstacleType.TripleShooter && type != ObstacleType.FireStump && type != ObstacleType.Nut && type != ObstacleType.TallNut && type != ObstacleType.CattailShooter && type != ObstacleType.Cactus && type != ObstacleType.IceMushroom && type != ObstacleType.CherryBomb && type != ObstacleType.PotatoMine && type != ObstacleType.FirePepper;
         if (shouldUsePrefab)
         {
             GameObject prefab = obstaclePrefabs[Random.Range(0, obstaclePrefabs.Count)];
@@ -750,6 +796,12 @@ public class ObstacleSpawner : MonoBehaviour
                 break;
             case ObstacleType.CherryBomb:
                 obstacle = CreateCherryBomb(size);
+                break;
+            case ObstacleType.PotatoMine:
+                obstacle = CreatePotatoMine(size);
+                break;
+            case ObstacleType.FirePepper:
+                obstacle = CreateFirePepper(size);
                 break;
         }
         return obstacle;
@@ -1462,11 +1514,102 @@ public class ObstacleSpawner : MonoBehaviour
         mushroomScript.model = iceMushroomModel;
         mushroomScript.damage = iceMushroomDamage;
         mushroomScript.freezeDuration = iceMushroomFreezeDuration;
+        mushroomScript.mushroomEffectPrefab = iceMushroomSelfEffectPrefab;
+        mushroomScript.mushroomEffectLifetime = iceMushroomSelfEffectLifetime;
+        mushroomScript.mushroomEffectPrefab2 = iceMushroomSelfEffectPrefab2;
+        mushroomScript.mushroomEffectLifetime2 = iceMushroomSelfEffectLifetime2;
+        mushroomScript.playerEffectPrefab = iceMushroomPlayerEffectPrefab;
+        mushroomScript.playerEffectLifetime = iceMushroomPlayerEffectLifetime;
         
         // 设置scale属性，这会触发UpdateScale方法
         mushroomScript.scale = size;
         
         return iceMushroom;
+    }
+    
+    GameObject CreatePotatoMine(float size)
+    {
+        GameObject mine;
+        if (potatoMinePrefab != null)
+        {
+            mine = Instantiate(potatoMinePrefab);
+        }
+        else
+        {
+            mine = new GameObject("PotatoMine");
+            GameObject visual = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+            visual.name = "Visual";
+            visual.transform.SetParent(mine.transform, false);
+            visual.transform.localScale = Vector3.one * size;
+            Collider visualCol = visual.GetComponent<Collider>();
+            if (visualCol != null) Destroy(visualCol);
+            SphereCollider col = mine.AddComponent<SphereCollider>();
+            col.isTrigger = true;
+            col.radius = size * 0.5f;
+        }
+
+        PotatoMine script = mine.GetComponent<PotatoMine>();
+        if (script == null) script = mine.AddComponent<PotatoMine>();
+        script.damage = potatoMineDamage;
+        script.activationDistance = potatoMineActivationDistance;
+        script.deactivationDistance = potatoMineDeactivationDistance;
+        script.buriedHeightRatio = potatoMineBuriedHeightRatio;
+        script.ascendSpeed = potatoMineAscendSpeed;
+        script.descendSpeed = potatoMineDescendSpeed;
+        if (potatoMineTriggerEffectPrefab != null)
+        {
+            script.triggerEffectPrefab = potatoMineTriggerEffectPrefab;
+        }
+
+        mine.transform.localScale = Vector3.one * size;
+        return mine;
+    }
+
+    GameObject CreateFirePepper(float size)
+    {
+        GameObject pepper;
+        if (firePepperPrefab != null)
+        {
+            pepper = Instantiate(firePepperPrefab);
+        }
+        else
+        {
+            pepper = new GameObject("FirePepper");
+            GameObject visual = GameObject.CreatePrimitive(PrimitiveType.Capsule);
+            visual.name = "Visual";
+            visual.transform.SetParent(pepper.transform, false);
+            visual.transform.localScale = new Vector3(size * 0.5f, size, size * 0.5f);
+            Collider visualCol = visual.GetComponent<Collider>();
+            if (visualCol != null) Destroy(visualCol);
+            CapsuleCollider col = pepper.AddComponent<CapsuleCollider>();
+            col.isTrigger = true;
+            col.height = size * 2f;
+            col.radius = size * 0.3f;
+        }
+
+        FirePepper script = pepper.GetComponent<FirePepper>();
+        if (script == null) script = pepper.AddComponent<FirePepper>();
+        script.triggerRadius = firePepperTriggerRadius;
+        script.growDuration = firePepperGrowDuration;
+        script.maxScaleMultiplier = firePepperMaxScaleMultiplier;
+        script.wobbleDuration = firePepperWobbleDuration;
+        script.wobbleMagnitude = firePepperWobbleMagnitude;
+        script.explosionDamage = firePepperExplosionDamage;
+        script.burnDuration = firePepperBurnDuration;
+        script.burnDamagePerSecond = firePepperBurnDamagePerSecond;
+        script.burnHeight = firePepperBurnHeight;
+        script.verticalLength = firePepperVerticalLength;
+        script.verticalWidth = firePepperVerticalWidth;
+        script.horizontalWidth = firePepperHorizontalWidth;
+        script.horizontalDepth = firePepperHorizontalDepth;
+        script.effectPrefab = firePepperEffectPrefab;
+        script.effectLifetime = firePepperEffectLifetime;
+        script.autoScaleEffect = firePepperAutoScaleEffect;
+        script.laneMinX = GetMinX();
+        script.laneMaxX = GetMaxX();
+
+        pepper.transform.localScale = Vector3.one * size;
+        return pepper;
     }
     
     GameObject CreateCherryBomb(float size)
@@ -1801,6 +1944,8 @@ public class ObstacleSpawner : MonoBehaviour
             case ObstacleType.TripleShooter:
             case ObstacleType.CattailShooter:
             case ObstacleType.CherryBomb:
+            case ObstacleType.FirePepper:
+            case ObstacleType.PotatoMine:
                 return 3;
                 
             default:
@@ -1854,6 +1999,14 @@ public class ObstacleSpawner : MonoBehaviour
         else if (type == ObstacleType.CherryBomb)
         {
             return Mathf.Max(0.25f, cherryBombScale * 0.5f);
+        }
+        else if (type == ObstacleType.FirePepper)
+        {
+            return Mathf.Max(0.25f, firePepperHorizontalWidth * 0.5f);
+        }
+        else if (type == ObstacleType.PotatoMine)
+        {
+            return Mathf.Max(0.25f, potatoMineScale * 0.5f);
         }
         return Mathf.Max(0.25f, estimatedHalfWidth);
     }
@@ -1969,6 +2122,10 @@ public class ObstacleSpawner : MonoBehaviour
                 return Mathf.Max(0f, iceMushroomDamage);
             case ObstacleType.CherryBomb:
                 return Mathf.Max(0f, cherryBombDamage);
+            case ObstacleType.FirePepper:
+                return Mathf.Max(0f, firePepperExplosionDamage);
+            case ObstacleType.PotatoMine:
+                return Mathf.Max(0f, potatoMineDamage);
             default:
                 return 30f; // 默认伤害值
         }

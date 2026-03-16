@@ -86,41 +86,29 @@ public class FrozenEffect : MonoBehaviour
     
     private IEnumerator FreezeCoroutine(PlayerController player, float freezeDuration)
     {
-        // 显示蓝色覆盖
-        overlayCanvas.enabled = true;
-        
-        // 淡入效果
-        float fadeTime = 0.2f;
-        float elapsedTime = 0;
-        while (elapsedTime < fadeTime)
-        {
-            float alpha = Mathf.Lerp(0, freezeScreenColor.a, elapsedTime / fadeTime);
-            overlayImage.color = new Color(freezeScreenColor.r, freezeScreenColor.g, freezeScreenColor.b, alpha);
-            elapsedTime += Time.deltaTime;
-            yield return null;
-        }
-        overlayImage.color = freezeScreenColor;
-        
-        // 使用新的冻结方法完全冻结玩家
+        // 冻结玩家
         player.ApplyFrozenEffect(freezeDuration);
-        
-        // 等待冻结时间
-        yield return new WaitForSeconds(freezeDuration - fadeTime * 2);
-        
-        // 淡出效果
-        elapsedTime = 0;
-        while (elapsedTime < fadeTime)
-        {
-            float alpha = Mathf.Lerp(freezeScreenColor.a, 0, elapsedTime / fadeTime);
-            overlayImage.color = new Color(freezeScreenColor.r, freezeScreenColor.g, freezeScreenColor.b, alpha);
-            elapsedTime += Time.deltaTime;
-            yield return null;
-        }
+
+        // 蓝色 UI 快速闪两下
+        overlayCanvas.enabled = true;
         overlayImage.color = new Color(freezeScreenColor.r, freezeScreenColor.g, freezeScreenColor.b, 0);
-        
-        // 隐藏覆盖
+
+        const int flashCount = 2;
+        const float flashOnTime = 0.1f;
+        const float flashOffTime = 0.05f;
+
+        for (int i = 0; i < flashCount; i++)
+        {
+            // 立即显现
+            overlayImage.color = freezeScreenColor;
+            yield return new WaitForSeconds(flashOnTime);
+
+            // 立即消失
+            overlayImage.color = new Color(freezeScreenColor.r, freezeScreenColor.g, freezeScreenColor.b, 0);
+            yield return new WaitForSeconds(flashOffTime);
+        }
+
         overlayCanvas.enabled = false;
-        
         freezeCoroutine = null;
     }
 }

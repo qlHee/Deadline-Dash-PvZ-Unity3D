@@ -62,13 +62,38 @@ public class PlayerController : MonoBehaviour
     [SerializeField] private Animator animator;
     [SerializeField] private float walkSpeedThreshold = 7f;
     [SerializeField] private float locomotionDampTime = 0.1f;
+    [Header("动作特效")]
+    public GameObject slideEffectPrefab;
+    public float slideEffectLifetime = 2f;
+    public Vector3 slideEffectOffset = new Vector3(0f, 0.5f, 0.8f);
+    public Vector3 slideEffectRotationOffset = Vector3.zero;
+    public float slideEffectDelay = 0f;
+    public GameObject grabEffectPrefab;
+    public float grabEffectLifetime = 2f;
+    public Vector3 grabEffectOffset = new Vector3(0f, 0.6f, 0.6f);
+    public Vector3 grabEffectRotationOffset = Vector3.zero;
+    public float grabEffectDelay = 0f;
+    [Header("冻结外观")]
+    public Color frozenTintColor = new Color(0.3f, 0.65f, 1f, 1f);
 
     private static readonly int AnimMoveSpeedHash = Animator.StringToHash("MoveSpeed");
     private static readonly int AnimGroundedHash = Animator.StringToHash("IsGrounded");
     private static readonly int AnimJumpTriggerHash = Animator.StringToHash("Jump");
+    private static readonly int AnimSlideTriggerHash = Animator.StringToHash("Slide");
+    private static readonly int AnimGrabTriggerHash = Animator.StringToHash("Grab");
     private const float WalkBlendValue = 0.2f;
 
     private Rigidbody rb;
+    private RigidbodyConstraints originalConstraints;
+    private bool constraintsStored = false;
+    private float originalAnimatorSpeed = 1f;
+    private bool animatorSpeedStored = false;
+    private Renderer[] rendererCache = null;
+    private string[] rendererColorProperty = null;
+    private Color[] rendererOriginalColor = null;
+    private bool rendererCacheBuilt = false;
+    private bool slowTintActive = false;
+    private bool frozenTintActive = false;
     private Collider bodyCollider;
     private float verticalVelocity = 0f;
     private bool isGrounded = true;
@@ -120,6 +145,36 @@ public class PlayerController : MonoBehaviour
         if (Input.GetKeyDown(KeyCode.Space) && !isFrozen)
         {
             jumpRequestTime = Time.time;
+        }
+
+        // 滑铲（仅地面）
+        if (Input.GetKeyDown(KeyCode.C) && isGrounded && !isFrozen && animator != null)
+        {
+            animator.ResetTrigger(AnimGrabTriggerHash);
+            animator.SetTrigger(AnimSlideTriggerHash);
+            if (slideEffectDelay > 0f)
+            {
+                StartCoroutine(SpawnActionEffectDelayed(slideEffectDelay, slideEffectPrefab, slideEffectLifetime, slideEffectOffset, slideEffectRotationOffset));
+            }
+            else
+            {
+                SpawnActionEffect(slideEffectPrefab, slideEffectLifetime, slideEffectOffset, slideEffectRotationOffset);
+            }
+        }
+
+        // 抓取（空中也可）
+        if (Input.GetKeyDown(KeyCode.X) && !isFrozen && animator != null)
+        {
+            animator.ResetTrigger(AnimSlideTriggerHash);
+            animator.SetTrigger(AnimGrabTriggerHash);
+            if (grabEffectDelay > 0f)
+            {
+                StartCoroutine(SpawnActionEffectDelayed(grabEffectDelay, grabEffectPrefab, grabEffectLifetime, grabEffectOffset, grabEffectRotationOffset));
+            }
+            else
+            {
+                SpawnActionEffect(grabEffectPrefab, grabEffectLifetime, grabEffectOffset, grabEffectRotationOffset);
+            }
         }
 
         UpdateSlowEffect();
@@ -418,6 +473,13 @@ public class PlayerController : MonoBehaviour
         isSlowed = true;
         slowEndTime = Time.time + duration;
         speedMultiplier = Mathf.Clamp01(slowMultiplier);
+        
+        // 在减速期间也显示蓝色高亮
+        if (!slowTintActive)
+        {
+            ApplyFrozenTint();
+            slowTintActive = true;
+        }
         Debug.Log($"[减速效果] 速度倍率: {speedMultiplier:F2}x, 持续时间: {duration}秒");
     }
 
@@ -427,6 +489,13 @@ public class PlayerController : MonoBehaviour
         {
             isSlowed = false;
             speedMultiplier = 1f;
+            
+            // 仅在未冻结时移除减速期间的蓝色
+            if (!isFrozen && slowTintActive)
+            {
+                RestoreFrozenTint();
+                slowTintActive = false;
+            }
             Debug.Log("[减速效果] 速度已恢复正常");
         }
     }
@@ -437,6 +506,27 @@ public class PlayerController : MonoBehaviour
         isFrozen = true;
         frozenEndTime = Time.time + duration;
         frozenPosition = transform.position; // 记录当前位置
+
+        if (rb != null)
+        {
+            if (!constraintsStored)
+            {
+                originalConstraints = rb.constraints;
+                constraintsStored = true;
+            }
+            rb.constraints = RigidbodyConstraints.FreezeAll;
+        }
+        frozenTintActive = true;
+        ApplyFrozenTint();
+        if (animator != null)
+        {
+            if (!animatorSpeedStored)
+            {
+                originalAnimatorSpeed = animator.speed;
+                animatorSpeedStored = true;
+            }
+            animator.speed = 0f;
+        }
         
         // 停止所有运动
         if (rb != null)
@@ -453,8 +543,108 @@ public class PlayerController : MonoBehaviour
         if (isFrozen && Time.time >= frozenEndTime)
         {
             isFrozen = false;
+            
+            if (rb != null && constraintsStored)
+            {
+                rb.constraints = originalConstraints;
+            }
+            RestoreFrozenTint();
+            frozenTintActive = false;
+            // 若减速效果仍在，重新上色
+            if (isSlowed && !slowTintActive)
+            {
+                ApplyFrozenTint();
+                slowTintActive = true;
+            }
+            if (animator != null && animatorSpeedStored)
+            {
+                animator.speed = originalAnimatorSpeed;
+            }
             Debug.Log("[冻结效果] 冻结状态结束");
         }
+    }
+    
+    void ApplyFrozenTint()
+    {
+        if (!rendererCacheBuilt)
+        {
+            BuildRendererCache();
+        }
+        
+        if (rendererCache == null) return;
+        
+        for (int i = 0; i < rendererCache.Length; i++)
+        {
+            Renderer r = rendererCache[i];
+            string prop = rendererColorProperty[i];
+            if (r == null || string.IsNullOrEmpty(prop)) continue;
+            
+            MaterialPropertyBlock mpb = new MaterialPropertyBlock();
+            r.GetPropertyBlock(mpb);
+            mpb.SetColor(prop, frozenTintColor);
+            r.SetPropertyBlock(mpb);
+        }
+    }
+    
+    void RestoreFrozenTint()
+    {
+        if (rendererCache == null) return;
+        
+        for (int i = 0; i < rendererCache.Length; i++)
+        {
+            Renderer r = rendererCache[i];
+            string prop = rendererColorProperty[i];
+            if (r == null || string.IsNullOrEmpty(prop)) continue;
+            
+            MaterialPropertyBlock mpb = new MaterialPropertyBlock();
+            r.GetPropertyBlock(mpb);
+            Color original = (rendererOriginalColor != null && rendererOriginalColor.Length > i) ? rendererOriginalColor[i] : Color.white;
+            mpb.SetColor(prop, original);
+            r.SetPropertyBlock(mpb);
+        }
+    }
+    
+    void BuildRendererCache()
+    {
+        rendererCache = GetComponentsInChildren<Renderer>();
+        if (rendererCache == null || rendererCache.Length == 0)
+        {
+            rendererCacheBuilt = true;
+            return;
+        }
+        
+        rendererColorProperty = new string[rendererCache.Length];
+        rendererOriginalColor = new Color[rendererCache.Length];
+        
+        for (int i = 0; i < rendererCache.Length; i++)
+        {
+            Renderer r = rendererCache[i];
+            if (r == null || r.sharedMaterial == null)
+            {
+                rendererColorProperty[i] = null;
+                rendererOriginalColor[i] = Color.white;
+                continue;
+            }
+            
+            Material mat = r.sharedMaterial;
+            if (mat.HasProperty("_BaseColor"))
+            {
+                rendererColorProperty[i] = "_BaseColor";
+                rendererOriginalColor[i] = mat.GetColor("_BaseColor");
+            }
+            else if (mat.HasProperty("_Color"))
+            {
+                rendererColorProperty[i] = "_Color";
+                rendererOriginalColor[i] = mat.GetColor("_Color");
+            }
+            else
+            {
+                rendererColorProperty[i] = null;
+                rendererOriginalColor[i] = Color.white;
+            }
+        }
+        
+        rendererCacheBuilt = true;
     }
 
     public void ApplyBurningEffect(float duration, float damagePerSecond)
@@ -511,6 +701,25 @@ public class PlayerController : MonoBehaviour
         if (animator == null) return;
         animator.ResetTrigger(AnimJumpTriggerHash);
         animator.SetTrigger(AnimJumpTriggerHash);
+    }
+
+    void SpawnActionEffect(GameObject prefab, float lifetime, Vector3 offset, Vector3 eulerOffset)
+    {
+        if (prefab == null) return;
+        Vector3 pos = transform.position + transform.TransformVector(offset);
+        Quaternion rot = transform.rotation * Quaternion.Euler(eulerOffset);
+        GameObject fx = Instantiate(prefab, pos, rot);
+        fx.transform.SetParent(transform, true); // 跟随玩家，保持相对位置
+        if (lifetime > 0f)
+        {
+            Destroy(fx, lifetime);
+        }
+    }
+
+    System.Collections.IEnumerator SpawnActionEffectDelayed(float delay, GameObject prefab, float lifetime, Vector3 offset, Vector3 eulerOffset)
+    {
+        yield return new WaitForSeconds(delay);
+        SpawnActionEffect(prefab, lifetime, offset, eulerOffset);
     }
 
     public void UpdateBoundaries(float roadWidth)
