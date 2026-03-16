@@ -101,14 +101,12 @@ public class PotatoMine : MonoBehaviour
 
     void OnTriggerEnter(Collider other)
     {
-        if (isTriggered) return;
+        if (isTriggered || other == null) return;
 
-        if (other.CompareTag("Player"))
+        PlayerController pc = other.GetComponentInParent<PlayerController>();
+        if (pc != null && !pc.IsGameOver())
         {
-            PlayerController pc = other.GetComponent<PlayerController>();
-            if (pc != null && !pc.IsGameOver())
-            {
-                isTriggered = true;
+            isTriggered = true;
 
                 // 确保爆炸位置在地表
                 transform.position = groundPosition;
@@ -126,9 +124,13 @@ public class PotatoMine : MonoBehaviour
                         if (col != null) col.enabled = false;
                     }
                 }
-                Destroy(gameObject, 0.05f);
-            }
+            Destroy(gameObject, 0.05f);
         }
+    }
+
+    void OnCollisionEnter(Collision collision)
+    {
+        OnTriggerEnter(collision.collider);
     }
 
     private Vector3 GetExplosionPosition()
