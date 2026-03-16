@@ -214,7 +214,7 @@ public class ObstacleSpawner : MonoBehaviour
     public float maxDifficultyFactor = 3f; // 降低到3，限制最高难度
     [Tooltip("难度变化平滑系数")]
     [Range(0.01f, 0.5f)]
-    public float difficultyTransitionSpeed = 0.03f; // 降低到0.03，使过渡更加平滑
+    public float difficultyTransitionSpeed = 0.15f; // 提高到0.15，让难度能快速响应
 
     // 缓存原始设置
     private int initialMinObstaclesPerRow;
@@ -314,23 +314,17 @@ public class ObstacleSpawner : MonoBehaviour
         initialMinObstacleDistance = minObstacleDistance;
         initialMaxObstacleDistance = maxObstacleDistance;
         
-        // 降低初始难度 - 减少障碍物数量，增加间距
-        minObstaclesPerRow = Mathf.Max(1, initialMinObstaclesPerRow - 1); // 确保至少有1个
-        maxObstaclesPerRow = Mathf.Max(minObstaclesPerRow, initialMaxObstaclesPerRow - 1);
-        minObstacleDistance = initialMinObstacleDistance * 1.2f; // 增加20%间距
-        maxObstacleDistance = initialMaxObstacleDistance * 1.2f;
-        
         // 初始化难度等级权重 - 初期只出现难度等级1的障碍物
         difficultyLevelWeights[1] = 1.0f; // 难度等级 1 的初始权重
         difficultyLevelWeights[2] = 0.0f; // 难度等级 2 初始不出现
         difficultyLevelWeights[3] = 0.0f; // 难度等级 3 初始不出现
 
-        // 初始化难度系数
-        currentDifficultyFactor = 0f;
-        targetDifficultyFactor = 0f;
+        // 初始化难度系数：从1.0开始，而不是0
+        currentDifficultyFactor = 1.0f;
+        targetDifficultyFactor = 1.0f;
         lastPlayerScore = 0f;
         
-        Debug.Log("[难度系统] 初始化完成 - 降低初始难度");
+        Debug.Log("[难度系统] 初始化完成 - 初始难度系数: 1.0");
     }
 
     void Update()
@@ -373,38 +367,38 @@ public class ObstacleSpawner : MonoBehaviour
 
         lastPlayerScore = playerScore;
 
-        // 计算目标难度系数 - 用户指定的8阶段系统（v7）
+        // 计算目标难度系数 - 前400米超级简单，傻子都能过
         if (playerScore <= 200f) {
-            // 阶段1: 0-200米，难度 1.0 -> 2.5
+            // 阶段1: 0-200米，难度 1.0 -> 1.15 (超级简单)
             float progress = Mathf.Clamp01(playerScore / 200f);
-            targetDifficultyFactor = Mathf.Lerp(1.0f, 2.5f, progress);
+            targetDifficultyFactor = Mathf.Lerp(1.0f, 1.15f, progress);
         } else if (playerScore <= 400f) {
-            // 阶段2: 200-400米，难度 2.5 -> 3.0
+            // 阶段2: 200-400米，难度 1.15 -> 1.3 (仍然很简单)
             float progress = Mathf.Clamp01((playerScore - 200f) / 200f);
-            targetDifficultyFactor = Mathf.Lerp(2.5f, 3.0f, progress);
+            targetDifficultyFactor = Mathf.Lerp(1.15f, 1.3f, progress);
         } else if (playerScore <= 800f) {
-            // 阶段3: 400-800米，难度 3.0 -> 3.5
+            // 阶段3: 400-800米，难度 2.0 -> 2.3
             float progress = Mathf.Clamp01((playerScore - 400f) / 400f);
-            targetDifficultyFactor = Mathf.Lerp(3.0f, 3.5f, progress);
+            targetDifficultyFactor = Mathf.Lerp(2.0f, 2.3f, progress);
         } else if (playerScore <= 1600f) {
-            // 阶段4: 800-1600米，难度 3.0 -> 3.6
+            // 阶段4: 800-1600米，难度 2.3 -> 2.5
             float progress = Mathf.Clamp01((playerScore - 800f) / 800f);
-            targetDifficultyFactor = Mathf.Lerp(3.0f, 3.6f, progress);
+            targetDifficultyFactor = Mathf.Lerp(2.3f, 2.5f, progress);
         } else if (playerScore <= 3200f) {
-            // 阶段5: 1600-3200米，难度 3.6 -> 3.9
+            // 阶段5: 1600-3200米，难度 2.5 -> 3.2
             float progress = Mathf.Clamp01((playerScore - 1600f) / 1600f);
-            targetDifficultyFactor = Mathf.Lerp(3.6f, 3.9f, progress);
+            targetDifficultyFactor = Mathf.Lerp(2.5f, 3.2f, progress);
         } else if (playerScore <= 6400f) {
-            // 阶段6: 3200-6400米，难度 3.9 -> 4.2
+            // 阶段6: 3200-6400米，难度 3.2 -> 3.6
             float progress = Mathf.Clamp01((playerScore - 3200f) / 3200f);
-            targetDifficultyFactor = Mathf.Lerp(3.9f, 4.2f, progress);
+            targetDifficultyFactor = Mathf.Lerp(3.2f, 3.6f, progress);
         } else if (playerScore <= 12800f) {
-            // 阶段7: 6400-12800米，难度 4.2 -> 4.5
+            // 阶段7: 6400-12800米，难度 3.6 -> 4.5
             float progress = Mathf.Clamp01((playerScore - 6400f) / 6400f);
-            targetDifficultyFactor = Mathf.Lerp(4.2f, 4.5f, progress);
+            targetDifficultyFactor = Mathf.Lerp(3.6f, 4.5f, progress);
         } else {
-            // 阶段8: 12800米以上，常量 9.0
-            targetDifficultyFactor = 9.0f;
+            // 阶段8: 12800米以上，常量 5.0
+            targetDifficultyFactor = 5.0f;
         }
         
         // 平滑过渡当前难度系数
@@ -419,8 +413,8 @@ public class ObstacleSpawner : MonoBehaviour
         // 1. 按难度系数调整每行障碍物数量（难度越高数量越多）
         // 早期(<~4.0)基本不放大，>=4后再加速放大，避免前期行内数量暴增
         float countRamp = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(4.0f, 9.0f, difficulty));
-        float maxCountScale = Mathf.Lerp(1.0f, 1.25f, countRamp);
-        float minCountScale = Mathf.Lerp(1.0f, 1.17f, countRamp);
+        float maxCountScale = Mathf.Lerp(1.0f, 1.2f, countRamp);
+        float minCountScale = Mathf.Lerp(1.0f, 1.2f, countRamp);
         int newMinCount = Mathf.Max(1, Mathf.FloorToInt(initialMinObstaclesPerRow * minCountScale));
         int newMaxCount = Mathf.Max(newMinCount, Mathf.FloorToInt(initialMaxObstaclesPerRow * maxCountScale));
         minObstaclesPerRow = newMinCount;
@@ -430,9 +424,9 @@ public class ObstacleSpawner : MonoBehaviour
         minObstaclesPerRow = Mathf.Min(minObstaclesPerRow, maxObstaclesPerRow);
 
         // 2. 按难度系数调整障碍物间距（难度越高间距越小）
-        // 早期更稀疏：从1.30逐步收敛到1.00，保证前期不会过密
-        float distanceRamp = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(2.5f, 9.0f, difficulty));
-        float distanceScale = Mathf.Lerp(1.30f, 1.00f, distanceRamp);
+        // 大幅降低开局难度：从2.00逐步收敛到1.00，在更长的距离内平滑过渡
+        float distanceRamp = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(1.0f, 4.0f, difficulty));
+        float distanceScale = Mathf.Lerp(2.00f, 1.00f, distanceRamp);
         minObstacleDistance = initialMinObstacleDistance * distanceScale;
         maxObstacleDistance = initialMaxObstacleDistance * distanceScale;
 
@@ -443,19 +437,26 @@ public class ObstacleSpawner : MonoBehaviour
         difficultyLevelWeights[1] = Mathf.Lerp(1.10f, 0.50f, wt);
         // 等级2：200米后出现，随难度上升
         difficultyLevelWeights[2] = (playerScore >= 200f) ? Mathf.Lerp(0.40f, 1.00f, wt) : 0f;
-        // 等级3：推迟到800米后逐步开放，前期强限制
-        if (playerScore < 800f)
+        // 等级3：推迟到400米后逐步开放，前期强限制
+        if (playerScore < 400f)
         {
             difficultyLevelWeights[3] = 0f;
         }
         else if (playerScore < 1600f)
         {
-            float pf = Mathf.Clamp01((playerScore - 800f) / 800f); // 800-1600m 线性增长
-            difficultyLevelWeights[3] = Mathf.Lerp(0.05f, 0.20f, pf) * Mathf.Lerp(0.8f, 1.0f, wt);
+            float pf = Mathf.Clamp01((playerScore - 400f) / 1200f); // 400-1600m 线性增长
+            difficultyLevelWeights[3] = Mathf.Lerp(0.05f, 0.25f, pf) * Mathf.Lerp(0.8f, 1.0f, wt);
+        }
+        else if (playerScore < 3200f)
+        {
+            // 1600-3200m：略微提高出现率
+            float pf = Mathf.Clamp01((playerScore - 1600f) / 1600f);
+            difficultyLevelWeights[3] = Mathf.Lerp(0.25f, 0.50f, pf) * Mathf.Lerp(0.9f, 1.1f, wt);
         }
         else
         {
-            difficultyLevelWeights[3] = Mathf.Lerp(0.20f, 1.20f, wt);
+            // 3200m后：显著提高出现率
+            difficultyLevelWeights[3] = Mathf.Lerp(0.50f, 1.50f, wt);
         }
 
         if (difficulty > 0.5f && difficulty % 0.5f < 0.05f)

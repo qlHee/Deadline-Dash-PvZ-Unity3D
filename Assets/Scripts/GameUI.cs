@@ -19,8 +19,10 @@ public class GameUI : MonoBehaviour
     public TextMeshProUGUI distanceText;
     public TextMeshProUGUI gameOverText;
     public TextMeshProUGUI scoreText;
-    public TextMeshProUGUI restartHintText;
+    public Button restartButton;
+    public Button mainMenuButton;
     public Slider healthSlider;
+    public TextMeshProUGUI healthValueText;
 
     private PlayerController playerController;
     private GameManager gameManager;
@@ -32,6 +34,9 @@ public class GameUI : MonoBehaviour
     public float maxBloodOverlayAlpha = 0.75f;
     public float pulseAmplitude = 0.08f;
     public float pulseSpeed = 3f;
+    
+    [Header("血条设置")]
+    private const float MAX_DISPLAY_HEALTH = 300f;
 
     void Start()
     {
@@ -40,6 +45,16 @@ public class GameUI : MonoBehaviour
 
         SetupHealthSliderVisuals();
         ResizeHealthSliderByMaxHealth();
+        
+        if (restartButton != null)
+        {
+            restartButton.onClick.AddListener(OnRestartButtonClicked);
+        }
+        
+        if (mainMenuButton != null)
+        {
+            mainMenuButton.onClick.AddListener(OnMainMenuButtonClicked);
+        }
     }
 
     void Update()
@@ -54,13 +69,13 @@ public class GameUI : MonoBehaviour
                 if (playerController != null && speedText != null)
                 {
                     float speed = playerController.GetForwardSpeed();
-                    speedText.text = $"speed: {speed:F1} m/s";
+                    speedText.text = $"速度: {speed:F1} m/s";
                 }
 
                 if (distanceText != null)
                 {
                     float distance = gameManager.GetCurrentDistance();
-                    distanceText.text = $"distance: {distance:F1} m";
+                    distanceText.text = $"距离: {distance:F1} m";
                 }
             }
 
@@ -71,12 +86,27 @@ public class GameUI : MonoBehaviour
 
                 if (healthSlider != null)
                 {
-                    if (!Mathf.Approximately(healthSlider.maxValue, maxHealth))
+                    float displayMaxHealth = Mathf.Min(maxHealth, MAX_DISPLAY_HEALTH);
+                    if (!Mathf.Approximately(healthSlider.maxValue, displayMaxHealth))
                     {
-                        healthSlider.maxValue = maxHealth;
+                        healthSlider.maxValue = displayMaxHealth;
                         ResizeHealthSliderByMaxHealth();
                     }
-                    healthSlider.value = currentHealth;
+                    healthSlider.value = Mathf.Min(currentHealth, MAX_DISPLAY_HEALTH);
+                }
+                
+                // 更新血量数值文本
+                if (healthValueText != null)
+                {
+                    if (maxHealth > MAX_DISPLAY_HEALTH)
+                    {
+                        healthValueText.gameObject.SetActive(true);
+                        healthValueText.text = $"{currentHealth:F0}/{maxHealth:F0}";
+                    }
+                    else
+                    {
+                        healthValueText.gameObject.SetActive(false);
+                    }
                 }
                 
                 // 根据血量控制遮罩
@@ -87,7 +117,7 @@ public class GameUI : MonoBehaviour
             if (isGameOver && scoreText != null)
             {
                 float score = gameManager.GetFinalScore();
-                scoreText.text = $"distance: {score:F1} m";
+                scoreText.text = $"距离: {score:F1} m";
             }
             
             // 控制结束提示的显隐
@@ -101,9 +131,14 @@ public class GameUI : MonoBehaviour
                 scoreText.gameObject.SetActive(isGameOver);
             }
             
-            if (restartHintText != null)
+            if (restartButton != null)
             {
-                restartHintText.gameObject.SetActive(isGameOver);
+                restartButton.gameObject.SetActive(isGameOver);
+            }
+            
+            if (mainMenuButton != null)
+            {
+                mainMenuButton.gameObject.SetActive(isGameOver);
             }
         }
     }
@@ -238,7 +273,9 @@ public class GameUI : MonoBehaviour
     {
         if (playerController == null || healthSlider == null) return;
         float maxHealth = playerController.GetMaxHealth();
-        float width = 4f * maxHealth; // 100 -> 400
+        // 血条宽度最多显示300点血量
+        float displayMaxHealth = Mathf.Min(maxHealth, MAX_DISPLAY_HEALTH);
+        float width = 4f * displayMaxHealth; // 最大 300 -> 1200
         float height = 40f; // 高度固定 40
         RectTransform rt = healthSlider.GetComponent<RectTransform>();
         if (rt != null)
@@ -272,6 +309,22 @@ public class GameUI : MonoBehaviour
         Color c = bloodOverlayImage.color;
         c.a = alpha;
         bloodOverlayImage.color = c;
+    }
+    
+    void OnRestartButtonClicked()
+    {
+        if (gameManager != null)
+        {
+            gameManager.RestartGame();
+        }
+    }
+    
+    void OnMainMenuButtonClicked()
+    {
+        if (gameManager != null)
+        {
+            gameManager.LoadMainMenu();
+        }
     }
 }
 

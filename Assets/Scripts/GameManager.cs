@@ -33,7 +33,7 @@ public class GameManager : MonoBehaviour
         {
             gameTime += Time.deltaTime;
         }
-
+        
         if (isGameOver && Input.GetKeyDown(KeyCode.R))
         {
             RestartGame();
@@ -57,12 +57,20 @@ public class GameManager : MonoBehaviour
         }
 
         Debug.Log($"游戏结束，得分 {finalScore:F1} 米");
-        Debug.Log("按 R 重新开始");
     }
 
     public void RestartGame()
     {
         Time.timeScale = 1f;
+        SceneManager.LoadScene(SceneManager.GetActiveScene().name);
+    }
+    
+    public void LoadMainMenu()
+    {
+        Time.timeScale = 1f;
+        // 如果有主菜单场景，请修改为对应的场景名称
+        // SceneManager.LoadScene("MainMenu");
+        // 目前没有主菜单，暂时重新加载当前场景
         SceneManager.LoadScene(SceneManager.GetActiveScene().name);
     }
 

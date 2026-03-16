@@ -5,7 +5,6 @@ public class SunflowerPickup : MonoBehaviour
 {
     [Header("回血设置")]
     public float healAmount = 35f;
-    public KeyCode grabKey = KeyCode.X;
     public float rotateSpeed = 0f;
     public float bobAmount = 0.15f;
     public float bobSpeed = 2f;
@@ -43,7 +42,7 @@ public class SunflowerPickup : MonoBehaviour
         SphereCollider sphere = triggerCollider as SphereCollider;
         if (sphere != null)
         {
-            sphere.radius = Mathf.Max(0.3f, visualScale * 0.6f);
+            sphere.radius = Mathf.Max(0.5f, visualScale * 1.5f);
         }
     }
 
@@ -133,7 +132,7 @@ public class SunflowerPickup : MonoBehaviour
             {
                 hoveredPlayer = null;
             }
-            else if (Input.GetKeyDown(grabKey))
+            else if (Input.GetKeyDown(KeyCode.LeftShift) || Input.GetKeyDown(KeyCode.RightShift))
             {
                 TryHeal();
             }
@@ -160,16 +159,18 @@ public class SunflowerPickup : MonoBehaviour
     void TryHeal()
     {
         if (hoveredPlayer == null) return;
-        if (hoveredPlayer.RestoreHealth(healAmount))
+        
+        hoveredPlayer.RestoreHealth(healAmount);
+        hoveredPlayer.IncreaseMaxHealth(10f); // 增加血量上阀10点
+        hoveredPlayer.SetInvincible(0.5f);
+        
+        consumed = true;
+        if (triggerCollider != null)
         {
-            consumed = true;
-            if (triggerCollider != null)
-            {
-                triggerCollider.enabled = false;
-            }
-            PlayCollectEffect();
-            Destroy(gameObject, 0.25f);
+            triggerCollider.enabled = false;
         }
+        PlayCollectEffect();
+        Destroy(gameObject, 0.25f);
     }
 
     void PlayCollectEffect()

@@ -57,6 +57,8 @@ public class PlayerController : MonoBehaviour
     private float lastObstacleDamageTime = Mathf.NegativeInfinity;
     private const float obstacleDamageCooldown = 0.2f;
     private float targetLaneX;
+    private bool isInvincible = false;
+    private float invincibleEndTime = 0f;
 
     [Header("减速效果")]
     private bool isSlowed = false;
@@ -94,6 +96,13 @@ public class PlayerController : MonoBehaviour
     public GameObject healEffectPrefab;
     public float healEffectLifetime = 2f;
     public Vector3 healEffectOffset = new Vector3(0f, 0.6f, 0f);
+    
+    [Header("音效设置")]
+    public AudioClip jumpSound;
+    public AudioClip landSound;
+    [Range(0f, 1f)]
+    public float soundVolume = 0.7f;
+    private AudioSource audioSource;
 
     [Header("跳跃增益")]
     public GameObject jumpBoostEffectPrefab;
@@ -189,6 +198,11 @@ public class PlayerController : MonoBehaviour
         currentHealth = maxHealth;
         targetLaneX = transform.position.x;
         jumpForceMultiplier = 1f;
+        
+        // 初始化音效系统
+        audioSource = gameObject.AddComponent<AudioSource>();
+        audioSource.playOnAwake = false;
+        audioSource.volume = soundVolume;
     }
 
     void Update()
@@ -215,8 +229,8 @@ public class PlayerController : MonoBehaviour
             }
         }
 
-        // 抓取（空中也可）
-        if (Input.GetKeyDown(KeyCode.X) && !isFrozen && animator != null)
+        // 抓取（空中也可） - 使用Shift键（左右都可）
+        if ((Input.GetKeyDown(KeyCode.LeftShift) || Input.GetKeyDown(KeyCode.RightShift)) && !isFrozen && animator != null)
         {
             animator.ResetTrigger(AnimSlideTriggerHash);
             animator.SetTrigger(AnimGrabTriggerHash);
@@ -230,6 +244,7 @@ public class PlayerController : MonoBehaviour
             }
         }
 
+        UpdateInvincibleState();
         UpdateSlowEffect();
         UpdateFrozenEffect();
         UpdateBurningEffect();
@@ -321,6 +336,7 @@ public class PlayerController : MonoBehaviour
                 groundedNow = false;
                 jumpRequestTime = Mathf.NegativeInfinity;
                 TriggerJumpAnimation();
+                PlayJumpSound();
             }
         }
         else
@@ -335,6 +351,13 @@ public class PlayerController : MonoBehaviour
         );
 
         rb.velocity = desiredVelocity;
+        
+        // 检测落地，播放落地音效
+        if (!isGrounded && groundedNow)
+        {
+            PlayLandSound();
+        }
+        
         isGrounded = groundedNow;
         UpdateAnimator(currentSpeed);
     }
@@ -461,9 +484,9 @@ public class PlayerController : MonoBehaviour
 
         float previousHealth = currentHealth;
         currentHealth = Mathf.Min(maxHealth, currentHealth + healAmount);
+        SpawnHealEffect();
         if (currentHealth > previousHealth)
         {
-            SpawnHealEffect();
             return true;
         }
         return false;
@@ -472,6 +495,11 @@ public class PlayerController : MonoBehaviour
     public bool TakeDamage(float damageAmount, DamageType damageType = DamageType.Normal)
     {
         if (isGameOver || damageAmount <= 0f)
+        {
+            return false;
+        }
+
+        if (isInvincible)
         {
             return false;
         }
@@ -730,6 +758,14 @@ public class PlayerController : MonoBehaviour
         return maxHealth;
     }
 
+    public void IncreaseMaxHealth(float amount)
+    {
+        if (amount <= 0f) return;
+        maxHealth += amount;
+        currentHealth += amount; // 同时增加当前血量
+        Debug.Log($"[血量上限] 增加 {amount} 点，新上限: {maxHealth}");
+    }
+
     public void ApplySlowEffect(float duration, float slowMultiplier)
     {
         // 如果玩家已被冻结，则不应用减速效果
@@ -765,6 +801,20 @@ public class PlayerController : MonoBehaviour
                 slowTintActive = false;
             }
             Debug.Log("[减速效果] 速度已恢复正常");
+        }
+    }
+
+    public void SetInvincible(float duration)
+    {
+        isInvincible = true;
+        invincibleEndTime = Time.time + duration;
+    }
+
+    void UpdateInvincibleState()
+    {
+        if (isInvincible && Time.time >= invincibleEndTime)
+        {
+            isInvincible = false;
         }
     }
     
@@ -1142,6 +1192,22 @@ public class PlayerController : MonoBehaviour
             Vector3 pos = rb.position;
             pos.x = Mathf.Clamp(pos.x, leftBoundary, rightBoundary);
             rb.position = pos;
+        }
+    }
+    
+    void PlayJumpSound()
+    {
+        if (audioSource != null && jumpSound != null)
+        {
+            audioSource.PlayOneShot(jumpSound, soundVolume);
+        }
+    }
+    
+    void PlayLandSound()
+    {
+        if (audioSource != null && landSound != null)
+        {
+            audioSource.PlayOneShot(landSound, soundVolume);
         }
     }
 }
