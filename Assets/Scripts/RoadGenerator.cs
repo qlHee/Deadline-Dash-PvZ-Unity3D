@@ -6,7 +6,9 @@ public class RoadGenerator : MonoBehaviour
     [Header("跑道设置")]
     public GameObject roadPrefab;
     public float roadLength = 50f;
-    public float roadWidth = 10f;
+    [Tooltip("跑道宽度（整数）")]
+    [Range(6, 20)]
+    public int roadWidth = 12;
     public float wallHeight = 3f;
     public int initialRoadCount = 5;
     public float spawnDistance = 100f;
@@ -117,7 +119,9 @@ public class RoadGenerator : MonoBehaviour
         Renderer renderer = ground.GetComponent<Renderer>();
         if (roadMaterial != null)
         {
-            renderer.material = roadMaterial;
+            Material instanceMaterial = new Material(roadMaterial);
+            instanceMaterial.mainTextureScale = new Vector2(roadWidth / 10f, roadLength / 10f);
+            renderer.material = instanceMaterial;
         }
         else
         {
@@ -310,5 +314,32 @@ public class RoadGenerator : MonoBehaviour
     private class GrassPoolTag : MonoBehaviour
     {
         public GameObject sourcePrefab;
+    }
+
+    void OnValidate()
+    {
+        if (roadWidth < 6) roadWidth = 6;
+        if (roadWidth > 20) roadWidth = 20;
+
+        UpdateRelatedComponents();
+    }
+
+    void UpdateRelatedComponents()
+    {
+        ObstacleSpawner obstacleSpawner = GetComponent<ObstacleSpawner>();
+        if (obstacleSpawner != null)
+        {
+            obstacleSpawner.UpdateRoadWidth(roadWidth);
+        }
+
+        GameObject playerObj = GameObject.FindGameObjectWithTag("Player");
+        if (playerObj != null)
+        {
+            PlayerController playerController = playerObj.GetComponent<PlayerController>();
+            if (playerController != null)
+            {
+                playerController.UpdateBoundaries(roadWidth);
+            }
+        }
     }
 }

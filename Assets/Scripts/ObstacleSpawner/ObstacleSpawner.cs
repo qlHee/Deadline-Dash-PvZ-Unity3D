@@ -74,26 +74,26 @@ public class ObstacleSpawner : MonoBehaviour
 
     [Header("尖刺子弹")]
     public float spikeProjectileDamage = 27f;
+    public GameObject spikeProjectileModel;
 
     [Header("道路设置")]
-    public float roadWidth = 10f;
-    public float roadMargin = 1.5f;
+    [Tooltip("道路宽度从 RoadGenerator 自动获取")]
+    [SerializeField] private float roadWidth = 12f;
+    public float roadMargin = 1f;
 
-    [Header("车道生成")]
-    public bool useLaneSpawning = true;
+    [Header("虚拟网格系统")]
+    [Tooltip("网格大小固定为1x1米")]
+    private const float gridSize = 1f;
+    [Tooltip("每行最少生成障碍物数量")]
     [Range(1, 5)]
-    public int laneCount = 3;
-    [Tooltip("保证至少多少条车道保持畅通")]
-    [Range(0, 2)]
-    public int minFreeLanes = 1;
-    [Range(0f, 1f)]
-    public float laneSpawnProbability = 0.6f;
-
-    [Header("随机生成")]
-    public bool allowFreeformSpawn = true;
-    [Range(1, 4)]
-    public int maxFreeformPerRow = 2;
-    public float minFreeformSpacing = 1.5f;
+    public int minObstaclesPerRow = 1;
+    [Tooltip("每行最多生成障碍物数量")]
+    [Range(1, 10)]
+    public int maxObstaclesPerRow = 3;
+    [Tooltip("在Scene和Game视图中显示虚拟网格")]
+    public bool showGrid = false;
+    [Tooltip("网格显示的前后范围")]
+    public float gridDisplayRange = 100f;
 
     [Header("模型障碍（优先使用）")]
     public List<GameObject> obstaclePrefabs = new List<GameObject>();
@@ -109,11 +109,13 @@ public class ObstacleSpawner : MonoBehaviour
     private Transform playerTransform;
     private PlayerController playerController;
     private readonly List<GameObject> activeObstacles = new List<GameObject>();
-    private readonly List<float> laneCenters = new List<float>();
-    private readonly List<int> laneOrder = new List<int>();
-    private readonly List<RowObstacleInfo> rowPlacementBuffer = new List<RowObstacleInfo>(8);
+    private readonly Dictionary<float, HashSet<int>> occupiedGrids = new Dictionary<float, HashSet<int>>();
+    private readonly Dictionary<float, Dictionary<int, ObstacleType>> rowObstacleTypes = new Dictionary<float, Dictionary<int, ObstacleType>>();
+    private readonly List<ObstacleType> recentObstacleHistory = new List<ObstacleType>();
+    private readonly List<bool> recentEdgeObstacles = new List<bool>();
     private float nextSpawnZ = 30f;
-    private bool laneCacheDirty = true;
+    private RoadGenerator roadGenerator;
+    private int gridCountX;
 
     private enum ObstacleType
     {
@@ -129,25 +131,31 @@ public class ObstacleSpawner : MonoBehaviour
         Cactus
     }
 
-    private struct RowObstacleInfo
+    private struct GridPosition
     {
-        public float centerX;
-        public float halfWidth;
+        public int gridX;
+        public float worldX;
+        public float worldZ;
     }
 
     void OnValidate()
     {
-        if (laneCount < 1) laneCount = 1;
-        minFreeLanes = Mathf.Clamp(minFreeLanes, 0, laneCount - 1);
         if (maxObstacleDistance < minObstacleDistance)
         {
             maxObstacleDistance = minObstacleDistance;
         }
-        laneCacheDirty = true;
+        if (minObstaclesPerRow < 1) minObstaclesPerRow = 1;
+        if (maxObstaclesPerRow < minObstaclesPerRow) maxObstaclesPerRow = minObstaclesPerRow;
     }
 
     void Start()
     {
+        roadGenerator = GetComponent<RoadGenerator>();
+        if (roadGenerator != null)
+        {
+            roadWidth = roadGenerator.GetRoadWidth();
+        }
+
         GameObject player = GameObject.FindGameObjectWithTag("Player");
         if (player == null)
         {
@@ -160,7 +168,7 @@ public class ObstacleSpawner : MonoBehaviour
         playerController = player.GetComponent<PlayerController>();
         nextSpawnZ = playerTransform.position.z + Mathf.Max(minSpawnDistance, safeZoneDistance);
 
-        RebuildLaneCache();
+        CalculateGridCount();
         PrewarmObstacles();
     }
 
@@ -182,124 +190,154 @@ public class ObstacleSpawner : MonoBehaviour
 
     void SpawnObstacleRow()
     {
-        rowPlacementBuffer.Clear();
+        if (gridCountX <= 0)
+        {
+            Debug.LogWarning("[ObstacleSpawner] 网格数量为0，无法生成障碍物");
+            nextSpawnZ += maxObstacleDistance;
+            return;
+        }
 
-        bool spawnLaneRow = useLaneSpawning && (!allowFreeformSpawn || Random.value < laneSpawnProbability);
-        if (spawnLaneRow)
+        int obstacleCount = Random.Range(minObstaclesPerRow, maxObstaclesPerRow + 1);
+        obstacleCount = Mathf.Min(obstacleCount, gridCountX);
+
+        if (obstacleCount <= 0)
         {
-            SpawnLaneRow(rowPlacementBuffer);
+            nextSpawnZ += Random.Range(minObstacleDistance, maxObstacleDistance);
+            return;
         }
-        else if (allowFreeformSpawn)
+
+        HashSet<int> usedGrids = new HashSet<int>();
+        Dictionary<int, ObstacleType> currentRowTypes = new Dictionary<int, ObstacleType>();
+
+        for (int i = 0; i < obstacleCount; i++)
         {
-            SpawnFreeformRow(rowPlacementBuffer);
+            bool forceEdge = ShouldForceEdgePlacement();
+            GridPosition gridPos = GetRandomAvailableGrid(usedGrids, forceEdge);
+            if (gridPos.gridX == -1) break;
+
+            ObstacleType type = GetRandomObstacleTypeWithConstraints();
+            SpawnObstacleAtGrid(type, gridPos);
+            
+            usedGrids.Add(gridPos.gridX);
+            currentRowTypes[gridPos.gridX] = type;
+            
+            recentObstacleHistory.Add(type);
+            if (recentObstacleHistory.Count > 10)
+            {
+                recentObstacleHistory.RemoveAt(0);
+            }
+
+            bool isEdge = (gridPos.gridX == 0 || gridPos.gridX == gridCountX - 1);
+            recentEdgeObstacles.Add(isEdge);
+            if (recentEdgeObstacles.Count > 10)
+            {
+                recentEdgeObstacles.RemoveAt(0);
+            }
         }
-        else
-        {
-            SpawnLaneRow(rowPlacementBuffer);
-        }
+
+        occupiedGrids[nextSpawnZ] = usedGrids;
+        rowObstacleTypes[nextSpawnZ] = currentRowTypes;
 
         float distance = Random.Range(minObstacleDistance, maxObstacleDistance);
         nextSpawnZ += distance;
     }
 
-    void SpawnLaneRow(List<RowObstacleInfo> rowInfo)
+    void CalculateGridCount()
     {
-        if (laneCacheDirty)
-        {
-            RebuildLaneCache();
-        }
-
-        if (laneCenters.Count == 0)
-        {
-            SpawnSingleObstacle(GetRandomObstacleType(), GetRandomX(), rowInfo);
-            return;
-        }
-
-        int maxBlockable = Mathf.Max(1, laneCenters.Count - Mathf.Clamp(minFreeLanes, 0, laneCenters.Count - 1));
-        int lanesToBlock = Random.Range(1, maxBlockable + 1);
-        ShuffleLaneOrder();
-
-        for (int i = 0; i < lanesToBlock; i++)
-        {
-            SpawnSingleObstacle(GetRandomObstacleType(), laneCenters[laneOrder[i]], rowInfo);
-        }
+        float usableWidth = roadWidth - roadMargin * 2f;
+        gridCountX = Mathf.FloorToInt(usableWidth / gridSize);
+        Debug.Log($"[ObstacleSpawner] 虚拟网格系统初始化: 道路宽度={roadWidth}, 可用宽度={usableWidth}, 网格数量={gridCountX}");
     }
 
-    void SpawnFreeformRow(List<RowObstacleInfo> rowInfo)
+    bool ShouldForceEdgePlacement()
     {
-        int obstacleCount = Random.Range(1, maxFreeformPerRow + 1);
-
-        for (int i = 0; i < obstacleCount; i++)
+        const int minEdgeInTen = 3;
+        
+        if (recentEdgeObstacles.Count < 10)
         {
-            ObstacleType type = GetRandomObstacleType();
-            float candidateHalfWidth = GetEstimatedHalfWidth(type);
-            const int maxAttempts = 8;
-            float candidateX = 0f;
-            bool found = false;
-            for (int attempt = 0; attempt < maxAttempts; attempt++)
+            return false;
+        }
+
+        int edgeCount = 0;
+        for (int i = 0; i < recentEdgeObstacles.Count; i++)
+        {
+            if (recentEdgeObstacles[i])
             {
-                candidateX = GetRandomX();
-                if (IsFarFromExisting(candidateX, rowInfo, minFreeformSpacing, candidateHalfWidth))
+                edgeCount++;
+            }
+        }
+
+        return edgeCount < minEdgeInTen;
+    }
+
+    GridPosition GetRandomAvailableGrid(HashSet<int> usedGrids, bool forceEdge = false)
+    {
+        List<int> availableGrids = new List<int>();
+        List<int> edgeGrids = new List<int>();
+        
+        for (int x = 0; x < gridCountX; x++)
+        {
+            if (!usedGrids.Contains(x))
+            {
+                availableGrids.Add(x);
+                if (x == 0 || x == gridCountX - 1)
                 {
-                    found = true;
-                    break;
+                    edgeGrids.Add(x);
                 }
             }
-
-            if (!found && rowInfo.Count > 0)
-            {
-                candidateX = GetRandomX();
-            }
-
-            SpawnSingleObstacle(type, candidateX, rowInfo);
         }
+
+        if (availableGrids.Count == 0)
+        {
+            return new GridPosition { gridX = -1, worldX = 0f, worldZ = nextSpawnZ };
+        }
+
+        int selectedGrid;
+        if (forceEdge && edgeGrids.Count > 0)
+        {
+            selectedGrid = edgeGrids[Random.Range(0, edgeGrids.Count)];
+        }
+        else
+        {
+            selectedGrid = availableGrids[Random.Range(0, availableGrids.Count)];
+        }
+
+        float worldX = GridToWorldX(selectedGrid);
+
+        return new GridPosition
+        {
+            gridX = selectedGrid,
+            worldX = worldX,
+            worldZ = nextSpawnZ
+        };
     }
 
-    void SpawnSingleObstacle(ObstacleType type, float laneX, List<RowObstacleInfo> rowInfo)
+    float GridToWorldX(int gridX)
+    {
+        float usableWidth = roadWidth - roadMargin * 2f;
+        float gridStartX = -(usableWidth / 2f);
+        return gridStartX + (gridX + 0.5f) * gridSize;
+    }
+
+    void SpawnObstacleAtGrid(ObstacleType type, GridPosition gridPos)
     {
         float size = cylinderSize;
-        if (type == ObstacleType.Peashooter)
-        {
-            size = Mathf.Max(0.1f, peashooterScale);
-        }
-        else if (type == ObstacleType.IceShooter)
-        {
-            size = Mathf.Max(0.1f, iceShooterScale);
-        }
-        else if (type == ObstacleType.DoubleShooter)
-        {
-            size = Mathf.Max(0.1f, doubleShooterScale);
-        }
-        else if (type == ObstacleType.TripleShooter)
-        {
-            size = Mathf.Max(0.1f, tripleShooterScale);
-        }
-        else if (type == ObstacleType.FireStump)
-        {
-            size = Mathf.Max(0.1f, fireStumpScale);
-        }
-        else if (type == ObstacleType.Nut)
-        {
-            size = Mathf.Max(0.1f, nutScale);
-        }
-        else if (type == ObstacleType.TallNut)
-        {
-            size = Mathf.Max(0.1f, tallNutScale);
-        }
+        if (type == ObstacleType.Peashooter) size = Mathf.Max(0.1f, peashooterScale);
+        else if (type == ObstacleType.IceShooter) size = Mathf.Max(0.1f, iceShooterScale);
+        else if (type == ObstacleType.DoubleShooter) size = Mathf.Max(0.1f, doubleShooterScale);
+        else if (type == ObstacleType.TripleShooter) size = Mathf.Max(0.1f, tripleShooterScale);
+        else if (type == ObstacleType.FireStump) size = Mathf.Max(0.1f, fireStumpScale);
+        else if (type == ObstacleType.Nut) size = Mathf.Max(0.1f, nutScale);
+        else if (type == ObstacleType.TallNut) size = Mathf.Max(0.1f, tallNutScale);
 
         GameObject obstacle = CreateObstacle(type, size);
-        if (obstacle == null)
-        {
-            return;
-        }
+        if (obstacle == null) return;
 
-        obstacle.name = $"Obstacle_{activeObstacles.Count}";
+        obstacle.name = $"Obstacle_{activeObstacles.Count}_Grid{gridPos.gridX}";
         obstacle.transform.SetParent(transform);
-        obstacle.transform.position = new Vector3(laneX, 0f, nextSpawnZ);
+        obstacle.transform.position = new Vector3(gridPos.worldX, 0f, gridPos.worldZ);
 
-        CenterRendererOnX(obstacle, laneX);
         AlignToGround(obstacle);
-        ClampWithinRoad(obstacle);
 
         Collider collider = EnsureCollider(obstacle);
         if (collider != null && forceTriggerCollider)
@@ -332,18 +370,9 @@ public class ObstacleSpawner : MonoBehaviour
             }
         }
 
-        if (rowInfo != null)
-        {
-            Renderer latestRenderer = obstacle.GetComponentInChildren<Renderer>();
-            rowInfo.Add(new RowObstacleInfo
-            {
-                centerX = latestRenderer != null ? latestRenderer.bounds.center.x : obstacle.transform.position.x,
-                halfWidth = GetHalfWidth(latestRenderer)
-            });
-        }
-
         activeObstacles.Add(obstacle);
     }
+
 
     GameObject CreateObstacle(ObstacleType type, float size)
     {
@@ -845,6 +874,7 @@ public class ObstacleSpawner : MonoBehaviour
         shooter.scale = cattailShooterScale;
         shooter.damage = cattailShooterDamage;
         shooter.projectileDamage = cattailProjectileDamage;
+        shooter.spikeProjectileModel = spikeProjectileModel;
         shooter.AssignMuzzle(muzzle.transform);
         shooter.SetProjectileHeight(peaProjectileHeight);
 
@@ -907,6 +937,7 @@ public class ObstacleSpawner : MonoBehaviour
         cactusScript.damage = cactusDamage;
         cactusScript.projectileDamage = cactusProjectileDamage;
         cactusScript.spikeHeight = cactusSpikeHeight;
+        cactusScript.spikeProjectileModel = spikeProjectileModel;
         cactusScript.AssignMuzzle(muzzle.transform);
         cactusScript.SetSpikeHeight(cactusSpikeHeight);
 
@@ -945,6 +976,8 @@ public class ObstacleSpawner : MonoBehaviour
                 activeObstacles.RemoveAt(i);
             }
         }
+
+        RemoveOldGridData();
     }
 
     void PrewarmObstacles()
@@ -968,23 +1001,37 @@ public class ObstacleSpawner : MonoBehaviour
         return Mathf.Max(spawnDistance, dynamicAhead);
     }
 
-    bool IsFarFromExisting(float candidateX, List<RowObstacleInfo> existing, float padding, float candidateHalfWidth)
+    ObstacleType GetRandomObstacleTypeWithConstraints()
     {
-        for (int i = 0; i < existing.Count; i++)
+        const int maxOccurrencesInTen = 4;
+        ObstacleType[] allTypes = (ObstacleType[])System.Enum.GetValues(typeof(ObstacleType));
+        List<ObstacleType> availableTypes = new List<ObstacleType>();
+
+        foreach (ObstacleType type in allTypes)
         {
-            float minDistance = existing[i].halfWidth + candidateHalfWidth + padding;
-            if (Mathf.Abs(existing[i].centerX - candidateX) < minDistance)
+            int occurrenceCount = 0;
+            for (int i = 0; i < recentObstacleHistory.Count; i++)
             {
-                return false;
+                if (recentObstacleHistory[i] == type)
+                {
+                    occurrenceCount++;
+                }
+            }
+
+            if (occurrenceCount < maxOccurrencesInTen)
+            {
+                availableTypes.Add(type);
             }
         }
-        return true;
+
+        if (availableTypes.Count == 0)
+        {
+            return allTypes[Random.Range(0, allTypes.Length)];
+        }
+
+        return availableTypes[Random.Range(0, availableTypes.Count)];
     }
 
-    ObstacleType GetRandomObstacleType()
-    {
-        return (ObstacleType)Random.Range(0, System.Enum.GetValues(typeof(ObstacleType)).Length);
-    }
 
     float GetEstimatedHalfWidth(ObstacleType type)
     {
@@ -1042,14 +1089,6 @@ public class ObstacleSpawner : MonoBehaviour
         return Random.Range(GetMinX(), GetMaxX());
     }
 
-    void CenterRendererOnX(GameObject obstacle, float targetCenterX)
-    {
-        Renderer renderer = obstacle.GetComponentInChildren<Renderer>();
-        if (renderer == null) return;
-        float currentCenterX = renderer.bounds.center.x;
-        float offset = targetCenterX - currentCenterX;
-        obstacle.transform.position += new Vector3(offset, 0f, 0f);
-    }
 
     void AlignToGround(GameObject obstacle)
     {
@@ -1060,25 +1099,6 @@ public class ObstacleSpawner : MonoBehaviour
         obstacle.transform.position += new Vector3(0f, -bottom, 0f);
     }
 
-    void ClampWithinRoad(GameObject obstacle)
-    {
-        Renderer renderer = obstacle.GetComponentInChildren<Renderer>();
-        if (renderer == null) return;
-
-        Bounds bounds = renderer.bounds;
-        float halfWidth = bounds.extents.x;
-        float minCenterX = GetMinX() + halfWidth;
-        float maxCenterX = GetMaxX() - halfWidth;
-        float currentCenterX = bounds.center.x;
-        float clampedCenter = Mathf.Clamp(currentCenterX, minCenterX, maxCenterX);
-        obstacle.transform.position += new Vector3(clampedCenter - currentCenterX, 0f, 0f);
-    }
-
-    float GetHalfWidth(Renderer renderer)
-    {
-        if (renderer == null) return 0.5f;
-        return Mathf.Max(0.25f, renderer.bounds.extents.x);
-    }
 
     Collider EnsureCollider(GameObject obstacle)
     {
@@ -1167,50 +1187,110 @@ public class ObstacleSpawner : MonoBehaviour
         }
     }
 
-    void ShuffleLaneOrder()
+    void RemoveOldGridData()
     {
-        for (int i = laneOrder.Count - 1; i > 0; i--)
-        {
-            int swapIndex = Random.Range(0, i + 1);
-            int temp = laneOrder[i];
-            laneOrder[i] = laneOrder[swapIndex];
-            laneOrder[swapIndex] = temp;
-        }
-    }
+        float cullZ = playerTransform.position.z - despawnDistance - 50f;
+        List<float> keysToRemove = new List<float>();
 
-    void RebuildLaneCache()
-    {
-        laneCenters.Clear();
-        laneOrder.Clear();
-
-        if (laneCount <= 0)
+        foreach (var key in occupiedGrids.Keys)
         {
-            laneCacheDirty = false;
-            return;
-        }
-
-        float minX = GetMinX();
-        float maxX = GetMaxX();
-        float usableWidth = Mathf.Max(0.1f, maxX - minX);
-
-        if (laneCount == 1)
-        {
-            laneCenters.Add((minX + maxX) * 0.5f);
-        }
-        else
-        {
-            float spacing = usableWidth / (laneCount - 1);
-            for (int i = 0; i < laneCount; i++)
+            if (key < cullZ)
             {
-                laneCenters.Add(minX + spacing * i);
+                keysToRemove.Add(key);
             }
         }
 
-        for (int i = 0; i < laneCount; i++)
+        foreach (var key in keysToRemove)
         {
-            laneOrder.Add(i);
+            occupiedGrids.Remove(key);
+            if (rowObstacleTypes.ContainsKey(key))
+            {
+                rowObstacleTypes.Remove(key);
+            }
+        }
+    }
+
+    public void UpdateRoadWidth(float newWidth)
+    {
+        roadWidth = newWidth;
+        CalculateGridCount();
+        Debug.Log($"[ObstacleSpawner] 道路宽度更新为: {roadWidth}, 网格数量: {gridCountX}");
+    }
+
+    void OnDrawGizmos()
+    {
+        if (!showGrid) return;
+
+        float currentRoadWidth = roadWidth;
+        if (roadGenerator != null)
+        {
+            currentRoadWidth = roadGenerator.GetRoadWidth();
         }
 
-        laneCacheDirty = false;
+        float usableWidth = currentRoadWidth - roadMargin * 2f;
+        int currentGridCountX = Mathf.FloorToInt(usableWidth / gridSize);
+
+        if (currentGridCountX <= 0) return;
+
+        float gridStartX = -(usableWidth / 2f);
+        float yOffset = 0.1f;
+
+        Transform playerTrans = playerTransform;
+        if (playerTrans == null)
+        {
+            GameObject player = GameObject.FindGameObjectWithTag("Player");
+            if (player != null)
+            {
+                playerTrans = player.transform;
+            }
+        }
+
+        float centerZ = playerTrans != null ? playerTrans.position.z : 0f;
+        float startZ = Mathf.Floor((centerZ - gridDisplayRange) / gridSize) * gridSize;
+        float endZ = Mathf.Ceil((centerZ + gridDisplayRange) / gridSize) * gridSize;
+
+        Gizmos.color = Color.red;
+
+        for (float z = startZ; z <= endZ; z += gridSize)
+        {
+            float leftX = gridStartX;
+            float rightX = gridStartX + currentGridCountX * gridSize;
+            Vector3 start = new Vector3(leftX, yOffset, z);
+            Vector3 end = new Vector3(rightX, yOffset, z);
+            DrawThickLine(start, end, 0.05f);
+        }
+
+        for (int x = 0; x <= currentGridCountX; x++)
+        {
+            float worldX = gridStartX + x * gridSize;
+            Vector3 start = new Vector3(worldX, yOffset, startZ);
+            Vector3 end = new Vector3(worldX, yOffset, endZ);
+            DrawThickLine(start, end, 0.05f);
+        }
+
+        Gizmos.color = new Color(1f, 1f, 0f, 0.3f);
+        for (float z = startZ; z <= endZ; z += gridSize)
+        {
+            Vector3 leftCenter = new Vector3(gridStartX + gridSize * 0.5f, yOffset, z + gridSize * 0.5f);
+            Vector3 rightCenter = new Vector3(gridStartX + (currentGridCountX - 1) * gridSize + gridSize * 0.5f, yOffset, z + gridSize * 0.5f);
+            Gizmos.DrawCube(leftCenter, new Vector3(gridSize * 0.9f, 0.01f, gridSize * 0.9f));
+            Gizmos.DrawCube(rightCenter, new Vector3(gridSize * 0.9f, 0.01f, gridSize * 0.9f));
+        }
+
+    }
+
+    void DrawThickLine(Vector3 start, Vector3 end, float thickness)
+    {
+        Vector3 direction = (end - start).normalized;
+        Vector3 perpendicular = Vector3.Cross(direction, Vector3.up) * thickness;
+        
+        Vector3 p1 = start + perpendicular;
+        Vector3 p2 = start - perpendicular;
+        Vector3 p3 = end - perpendicular;
+        Vector3 p4 = end + perpendicular;
+
+        Gizmos.DrawLine(p1, p4);
+        Gizmos.DrawLine(p2, p3);
+        Gizmos.DrawLine(start, end);
     }
 }

@@ -9,8 +9,10 @@ public class PlayerController : MonoBehaviour
     public float minForwardSpeed = 5f;
     public float speedChangeRate = 2f;
     public float horizontalSpeed = 8f;
-    public float leftBoundary = -4f;
-    public float rightBoundary = 4f;
+    [Tooltip("左边界（根据道路宽度自动计算）")]
+    [SerializeField] private float leftBoundary = -5f;
+    [Tooltip("右边界（根据道路宽度自动计算）")]
+    [SerializeField] private float rightBoundary = 5f;
 
     [Header("跳跃设置")]
     public float jumpForce = 8f;
@@ -465,5 +467,22 @@ public class PlayerController : MonoBehaviour
         if (animator == null) return;
         animator.ResetTrigger(AnimJumpTriggerHash);
         animator.SetTrigger(AnimJumpTriggerHash);
+    }
+
+    public void UpdateBoundaries(float roadWidth)
+    {
+        float halfWidth = roadWidth / 2f;
+        float margin = 1f;
+        leftBoundary = -halfWidth + margin;
+        rightBoundary = halfWidth - margin;
+        
+        targetLaneX = Mathf.Clamp(targetLaneX, leftBoundary, rightBoundary);
+        
+        if (rb != null)
+        {
+            Vector3 pos = rb.position;
+            pos.x = Mathf.Clamp(pos.x, leftBoundary, rightBoundary);
+            rb.position = pos;
+        }
     }
 }

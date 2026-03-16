@@ -16,6 +16,7 @@ public class CattailShooter : MonoBehaviour
     public float projectileLifetime = 5f;
     public Color projectileColor = new Color32(255, 223, 128, 255);
     public float targetLeadDistance = 10f;
+    public GameObject spikeProjectileModel;
 
     private Transform muzzle;
     private PlayerController player;
@@ -67,26 +68,44 @@ public class CattailShooter : MonoBehaviour
         Vector3 spawnPosition = spawnOrigin.position;
         spawnPosition.y = projectileHeight;
 
-        GameObject projectileObject = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
-        projectileObject.name = "SpikeProjectile";
-        projectileObject.transform.position = spawnPosition;
-        projectileObject.transform.localScale = new Vector3(0.3f, 0.5f, 0.3f);
+        GameObject projectileObject;
         
-        projectileObject.transform.rotation = Quaternion.LookRotation(direction) * Quaternion.Euler(90f, 0f, 0f);
+        if (spikeProjectileModel != null)
+        {
+            projectileObject = Instantiate(spikeProjectileModel);
+            projectileObject.name = "SpikeProjectile";
+            projectileObject.transform.position = spawnPosition;
+            projectileObject.transform.localScale = new Vector3(0.3f, 0.5f, 0.3f);
+            projectileObject.transform.rotation = Quaternion.LookRotation(direction) * Quaternion.Euler(90f, 0f, 0f);
+        }
+        else
+        {
+            projectileObject = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+            projectileObject.name = "SpikeProjectile";
+            projectileObject.transform.position = spawnPosition;
+            projectileObject.transform.localScale = new Vector3(0.3f, 0.5f, 0.3f);
+            projectileObject.transform.rotation = Quaternion.LookRotation(direction) * Quaternion.Euler(90f, 0f, 0f);
+        }
 
-        Rigidbody rb = projectileObject.AddComponent<Rigidbody>();
+        Rigidbody rb = projectileObject.GetComponent<Rigidbody>();
+        if (rb == null)
+        {
+            rb = projectileObject.AddComponent<Rigidbody>();
+        }
         rb.useGravity = false;
         rb.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
 
         Collider collider = projectileObject.GetComponent<Collider>();
-        if (collider != null)
+        if (collider == null)
         {
-            collider.isTrigger = true;
+            collider = projectileObject.AddComponent<MeshCollider>();
+            ((MeshCollider)collider).convex = true;
         }
+        collider.isTrigger = true;
 
         TagUtility.TryAssignTag(projectileObject, "Obstacle");
 
-        Renderer renderer = projectileObject.GetComponent<Renderer>();
+        Renderer renderer = projectileObject.GetComponentInChildren<Renderer>();
         if (renderer != null)
         {
             renderer.material.color = projectileColor;

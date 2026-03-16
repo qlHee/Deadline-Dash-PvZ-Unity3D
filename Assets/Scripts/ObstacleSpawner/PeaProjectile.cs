@@ -90,8 +90,78 @@ public class PeaProjectile : MonoBehaviour
         Renderer renderer = GetComponent<Renderer>();
         if (renderer != null)
         {
-            renderer.material.color = burningColor;
+            Material material = renderer.material;
+            material.color = burningColor;
+            
+            material.EnableKeyword("_EMISSION");
+            material.SetColor("_EmissionColor", burningColor * 2f);
         }
+        
+        AddTrailEffect();
+        AddParticleEffect();
+    }
+    
+    private void AddTrailEffect()
+    {
+        TrailRenderer trail = gameObject.AddComponent<TrailRenderer>();
+        trail.time = 0.3f;
+        trail.startWidth = 0.3f;
+        trail.endWidth = 0.05f;
+        trail.material = new Material(Shader.Find("Sprites/Default"));
+        
+        Gradient gradient = new Gradient();
+        gradient.SetKeys(
+            new GradientColorKey[] { 
+                new GradientColorKey(new Color(1f, 0.5f, 0f), 0f),
+                new GradientColorKey(new Color(1f, 0.27f, 0f), 1f)
+            },
+            new GradientAlphaKey[] { 
+                new GradientAlphaKey(1f, 0f),
+                new GradientAlphaKey(0f, 1f)
+            }
+        );
+        trail.colorGradient = gradient;
+    }
+    
+    private void AddParticleEffect()
+    {
+        GameObject particleObj = new GameObject("BurningParticles");
+        particleObj.transform.SetParent(transform);
+        particleObj.transform.localPosition = Vector3.zero;
+        
+        ParticleSystem ps = particleObj.AddComponent<ParticleSystem>();
+        var main = ps.main;
+        main.startLifetime = 0.5f;
+        main.startSpeed = 1f;
+        main.startSize = 0.1f;
+        main.maxParticles = 20;
+        
+        var emission = ps.emission;
+        emission.rateOverTime = 30f;
+        
+        var shape = ps.shape;
+        shape.shapeType = ParticleSystemShapeType.Sphere;
+        shape.radius = 0.2f;
+        
+        var colorOverLifetime = ps.colorOverLifetime;
+        colorOverLifetime.enabled = true;
+        Gradient particleGradient = new Gradient();
+        particleGradient.SetKeys(
+            new GradientColorKey[] {
+                new GradientColorKey(new Color(1f, 0.8f, 0f), 0f),
+                new GradientColorKey(new Color(1f, 0.3f, 0f), 0.5f),
+                new GradientColorKey(new Color(0.5f, 0.1f, 0f), 1f)
+            },
+            new GradientAlphaKey[] {
+                new GradientAlphaKey(1f, 0f),
+                new GradientAlphaKey(0.5f, 0.5f),
+                new GradientAlphaKey(0f, 1f)
+            }
+        );
+        colorOverLifetime.color = new ParticleSystem.MinMaxGradient(particleGradient);
+        
+        var renderer = ps.GetComponent<ParticleSystemRenderer>();
+        renderer.material = new Material(Shader.Find("Particles/Standard Unlit"));
     }
 
     public void ConvertToIcePea()
