@@ -39,6 +39,8 @@ public class GameSetupEditor : EditorWindow
         CreateEndlessMode(folderPath);
         CreateHellMode(folderPath);
         CreateNightMode(folderPath);
+        CreateStormMode(folderPath);
+        CreateIceMode(folderPath);
         CreateTimeLimitMode(folderPath);
         
         AssetDatabase.SaveAssets();
@@ -233,6 +235,7 @@ public class GameSetupEditor : EditorWindow
         UnityEngine.UI.Button nightMode = null;
         UnityEngine.UI.Button stormMode = null;
         UnityEngine.UI.Button timeLimit = null;
+        UnityEngine.UI.Button iceMode = null;
         UnityEngine.UI.Button getNewChar = null;
         UnityEngine.UI.Button gameRecord = null;
         
@@ -258,6 +261,8 @@ public class GameSetupEditor : EditorWindow
                 stormMode = btn;
             else if (name.Contains("TimeLimit") || name.Contains("限时模式"))
                 timeLimit = btn;
+            else if (name.Contains("IceMode") || name.Contains("冰封模式"))
+                iceMode = btn;
             else if (name.Contains("GetNewCharacter") || name.Contains("获取新角色"))
                 getNewChar = btn;
             else if (name.Contains("GameRecord") || name.Contains("游戏记录"))
@@ -276,6 +281,7 @@ public class GameSetupEditor : EditorWindow
         so.FindProperty("nightModeButton").objectReferenceValue = nightMode;
         so.FindProperty("stormModeButton").objectReferenceValue = stormMode;
         so.FindProperty("timeLimitModeButton").objectReferenceValue = timeLimit;
+        so.FindProperty("iceModeButton").objectReferenceValue = iceMode;
         so.FindProperty("getNewCharacterButton").objectReferenceValue = getNewChar;
         so.FindProperty("gameRecordButton").objectReferenceValue = gameRecord;
         
@@ -520,6 +526,88 @@ public class GameSetupEditor : EditorWindow
         Debug.Log("  - 特殊灯光: 启用, 强度 1.5");
     }
     
+    static void CreateStormMode(string folderPath)
+    {
+        string assetPath = folderPath + "/StormMode.asset";
+
+        if (AssetDatabase.LoadAssetAtPath<GameModeData>(assetPath) != null)
+        {
+            Debug.Log("[GameSetup] StormMode already exists, skipping.");
+            return;
+        }
+
+        GameModeData data = ScriptableObject.CreateInstance<GameModeData>();
+        data.modeName = "雷暴模式";
+        data.modeType = GameMode.Storm;
+
+        data.initialHealthMultiplier = 1f;
+        data.regenRateMultiplier = 1f;
+
+        data.useDynamicDifficulty = false;
+
+        data.minCountMultiplierStart = 1.0f;
+        data.minCountMultiplierEnd = 1.0f;
+        data.maxCountMultiplierStart = 1.0f;
+        data.maxCountMultiplierEnd = 1.0f;
+        data.spacingMultiplierStart = 1.0f;
+        data.spacingMultiplierEnd = 1.0f;
+
+        data.ambientLightMultiplier = 0.1f;
+        data.addSpecialLight = true;
+        data.specialLightColor = new Color(0.16470589f, 0.14387326f, 0.2509804f);
+        data.specialLightIntensity = 6f;
+
+        data.isTimeLimited = false;
+        data.scoreMultiplier = 1f;
+
+        AssetDatabase.CreateAsset(data, assetPath);
+        Debug.Log("[GameSetup] Created game mode: StormMode");
+    }
+
+    static void CreateIceMode(string folderPath)
+    {
+        string assetPath = folderPath + "/IceMode.asset";
+
+        if (AssetDatabase.LoadAssetAtPath<GameModeData>(assetPath) != null)
+        {
+            Debug.Log("[GameSetup] IceMode already exists, skipping.");
+            return;
+        }
+
+        GameModeData data = ScriptableObject.CreateInstance<GameModeData>();
+        data.modeName = "冰封模式";
+        data.modeType = GameMode.Ice;
+
+        data.initialHealthMultiplier = 1f;
+        data.regenRateMultiplier = 1f;
+
+        data.useDynamicDifficulty = false;
+
+        data.minCountMultiplierStart = 1.0f;
+        data.minCountMultiplierEnd = 1.0f;
+        data.maxCountMultiplierStart = 1.0f;
+        data.maxCountMultiplierEnd = 1.0f;
+        data.spacingMultiplierStart = 1.0f;
+        data.spacingMultiplierEnd = 1.0f;
+
+        data.ambientLightMultiplier = 0.85f;
+        data.addSpecialLight = false;
+
+        data.iceShooterWeightMultiplier = 3.0f;
+        data.iceMushroomWeightMultiplier = 3.0f;
+        data.iceSnowPrefab = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Epic Toon FX/Prefabs/Environment/Weather/Snow/SnowSpinny.prefab");
+        data.iceSnowOffset = new Vector3(0f, 12f, 0f);
+        data.iceSnowFollowPlayer = true;
+        data.iceSnowWorldPosition = new Vector3(0f, 12f, 0f);
+        data.iceSnowAreaSize = new Vector3(120f, 40f, 120f);
+
+        data.isTimeLimited = false;
+        data.scoreMultiplier = 1f;
+
+        AssetDatabase.CreateAsset(data, assetPath);
+        Debug.Log("[GameSetup] Created game mode: IceMode");
+    }
+
     static void CreateTimeLimitMode(string folderPath)
     {
         string assetPath = folderPath + "/TimeLimitMode.asset";
@@ -572,9 +660,11 @@ public class GameSetupEditor : EditorWindow
         GameModeData endlessMode = AssetDatabase.LoadAssetAtPath<GameModeData>("Assets/GameModeData/EndlessMode.asset");
         GameModeData hellMode = AssetDatabase.LoadAssetAtPath<GameModeData>("Assets/GameModeData/HellMode.asset");
         GameModeData nightMode = AssetDatabase.LoadAssetAtPath<GameModeData>("Assets/GameModeData/NightMode.asset");
+        GameModeData stormMode = AssetDatabase.LoadAssetAtPath<GameModeData>("Assets/GameModeData/StormMode.asset");
+        GameModeData iceMode = AssetDatabase.LoadAssetAtPath<GameModeData>("Assets/GameModeData/IceMode.asset");
         GameModeData timeLimitMode = AssetDatabase.LoadAssetAtPath<GameModeData>("Assets/GameModeData/TimeLimitMode.asset");
         
-        if (endlessMode == null || hellMode == null || nightMode == null || timeLimitMode == null)
+        if (endlessMode == null || hellMode == null || nightMode == null || stormMode == null || iceMode == null || timeLimitMode == null)
         {
             EditorUtility.DisplayDialog("错误", "游戏模式数据加载失败！\n请先运行菜单: 游戏配置 > 一键创建游戏模式数据", "确定");
             return;
@@ -582,11 +672,13 @@ public class GameSetupEditor : EditorWindow
         
         SerializedObject so = new SerializedObject(manager);
         SerializedProperty modesProp = so.FindProperty("gameModes");
-        modesProp.arraySize = 4;
+        modesProp.arraySize = 6;
         modesProp.GetArrayElementAtIndex(0).objectReferenceValue = endlessMode;
         modesProp.GetArrayElementAtIndex(1).objectReferenceValue = hellMode;
         modesProp.GetArrayElementAtIndex(2).objectReferenceValue = nightMode;
-        modesProp.GetArrayElementAtIndex(3).objectReferenceValue = timeLimitMode;
+        modesProp.GetArrayElementAtIndex(3).objectReferenceValue = stormMode;
+        modesProp.GetArrayElementAtIndex(4).objectReferenceValue = iceMode;
+        modesProp.GetArrayElementAtIndex(5).objectReferenceValue = timeLimitMode;
         
         so.ApplyModifiedProperties();
         EditorUtility.SetDirty(manager);

@@ -15,6 +15,20 @@ public class GameManager : MonoBehaviour
     private Color originalAmbientColor;
     private float originalAmbientIntensity;
     private GameObject specialLight;
+    private GameObject stormRainInstance;
+    private Light stormLightningLight;
+    private Coroutine stormLightningRoutine;
+    private bool stormActive;
+    private Transform stormFollowTarget;
+    private Vector3 stormRainOffset;
+    private float stormBaseAmbientIntensity;
+    private float stormBaseFogDensity;
+    private float stormLightningFogDensity;
+    private AudioSource stormLightningAudioSource;
+    private GameObject iceSnowInstance;
+    private bool iceActive;
+    private Transform iceFollowTarget;
+    private Vector3 iceSnowOffset;
     private AudioSource backgroundMusicSource;
     private Dictionary<Light, float> originalLightIntensities = new Dictionary<Light, float>();
     private Material originalSkyboxMaterial;
@@ -25,6 +39,9 @@ public class GameManager : MonoBehaviour
     private FogMode originalFogMode;
     private bool isTimeLimitMode = false;
     private float timeLimitTimer = 0f;
+    private bool hasRecordedRun = false;
+    [Range(0f, 1f)]
+    [SerializeField] private float backgroundMusicVolume = 1f;
 
     void Start()
     {
@@ -41,6 +58,7 @@ public class GameManager : MonoBehaviour
             playerController = player.GetComponent<PlayerController>();
             ApplySelectedCharacterAttributes();
         }
+
     }
     
     void ApplySelectedCharacterAttributes()
@@ -95,7 +113,9 @@ public class GameManager : MonoBehaviour
     {
         bool isHellMode = (modeData.modeType == GameMode.Hell);
         bool isNightMode = (modeData.modeType == GameMode.Night);
-        Debug.Log($"[环境设置] 开始应用环境设置, 地狱模式: {isHellMode}, 黑夜模式: {isNightMode}");
+        bool isStormMode = (modeData.modeType == GameMode.Storm);
+        bool isIceMode = (modeData.modeType == GameMode.Ice);
+        Debug.Log($"[环境设置] 开始应用环境设置, 地狱模式: {isHellMode}, 黑夜模式: {isNightMode}, 雷暴模式: {isStormMode}, 冰封模式: {isIceMode}");
         
         originalAmbientColor = RenderSettings.ambientLight;
         originalAmbientIntensity = RenderSettings.ambientIntensity;
@@ -151,9 +171,10 @@ public class GameManager : MonoBehaviour
                 }
             }
         }
-        else if (isNightMode)
+        else if (isNightMode || isStormMode)
         {
-            Debug.Log($"[环境设置] 黑夜模式 - 开始设置黑色天空和雾效");
+            string nightLabel = isStormMode ? "雷暴模式" : "黑夜模式";
+            Debug.Log($"[环境设置] {nightLabel} - 开始设置黑色天空和雾效");
             
             if (modeData.addSpecialLight)
             {
@@ -197,6 +218,24 @@ public class GameManager : MonoBehaviour
             
             Debug.Log($"[环境设置] 启用黑色雾效, 密度: 0.08");
         }
+
+        if (isStormMode)
+        {
+            StartStormEffects(modeData);
+        }
+        else
+        {
+            StopStormEffects();
+        }
+
+        if (isIceMode)
+        {
+            StartIceEffects(modeData);
+        }
+        else
+        {
+            StopIceEffects();
+        }
     }
     
     void ApplyBackgroundMusic(GameModeData modeData)
@@ -235,15 +274,7 @@ public class GameManager : MonoBehaviour
         
         backgroundMusicSource.clip = modeData.backgroundMusic;
         
-        if (modeData.modeType == GameMode.Hell)
-        {
-            backgroundMusicSource.volume = 0.6f;
-        }
-        else
-        {
-            backgroundMusicSource.volume = 1.0f;
-        }
-        
+        ApplyBackgroundMusicVolume();
         backgroundMusicSource.Play();
         Debug.Log($"[音乐设置] 播放背景音乐: {modeData.backgroundMusic.name}, 音量: {backgroundMusicSource.volume}");
     }
@@ -275,6 +306,9 @@ public class GameManager : MonoBehaviour
                 }
             }
         }
+
+        UpdateStormRainFollow();
+        UpdateIceSnowFollow();
         
         if (isGameOver && Input.GetKeyDown(KeyCode.R))
         {
@@ -287,11 +321,7 @@ public class GameManager : MonoBehaviour
         if (isGameOver) return;
 
         isGameOver = true;
-
-        if (playerController != null)
-        {
-            finalScore = playerController.GetTotalDistance();
-        }
+        RecordRunSnapshot();
 
         if (gameOverUI != null)
         {
@@ -303,12 +333,14 @@ public class GameManager : MonoBehaviour
 
     public void RestartGame()
     {
+        RecordRunSnapshot();
         Time.timeScale = 1f;
         SceneManager.LoadScene(SceneManager.GetActiveScene().name);
     }
     
     public void LoadMainMenu()
     {
+        RecordRunSnapshot();
         Time.timeScale = 1f;
         RestoreEnvironmentSettings();
         SceneManager.LoadScene("MainMenu");
@@ -316,6 +348,9 @@ public class GameManager : MonoBehaviour
     
     void RestoreEnvironmentSettings()
     {
+        StopStormEffects();
+        StopIceEffects();
+
         if (originalAmbientColor != Color.clear)
         {
             RenderSettings.ambientLight = originalAmbientColor;
@@ -351,10 +386,389 @@ public class GameManager : MonoBehaviour
             Destroy(backgroundMusicSource.gameObject);
         }
     }
+
+    void StartStormEffects(GameModeData modeData)
+    {
+        if (stormActive)
+        {
+            return;
+        }
+
+        stormActive = true;
+        stormFollowTarget = playerController != null ? playerController.transform : null;
+        stormRainOffset = modeData.stormRainOffset;
+        stormBaseAmbientIntensity = RenderSettings.ambientIntensity;
+        stormBaseFogDensity = RenderSettings.fogDensity;
+        if (modeData.stormFogDensity > 0f)
+        {
+            RenderSettings.fogDensity = modeData.stormFogDensity;
+        }
+        stormBaseFogDensity = RenderSettings.fogDensity;
+        stormLightningFogDensity = modeData.lightningFogDensity > 0f ? modeData.lightningFogDensity : stormBaseFogDensity;
+
+        if (modeData.stormRainPrefab != null)
+        {
+            stormRainInstance = Instantiate(modeData.stormRainPrefab);
+            stormRainInstance.name = "StormRain";
+            stormRainInstance.transform.SetParent(transform, false);
+            UpdateStormRainFollow();
+        }
+
+        stormLightningLight = new GameObject("StormLightningLight").AddComponent<Light>();
+        stormLightningLight.type = LightType.Directional;
+        stormLightningLight.color = modeData.lightningColor;
+        stormLightningLight.intensity = 0f;
+        stormLightningLight.transform.rotation = Quaternion.Euler(50f, -30f, 0f);
+
+        if (modeData.lightningSound != null)
+        {
+            GameObject audioObj = new GameObject("StormLightningAudio");
+            audioObj.transform.SetParent(transform, false);
+            stormLightningAudioSource = audioObj.AddComponent<AudioSource>();
+            stormLightningAudioSource.playOnAwake = false;
+            stormLightningAudioSource.loop = false;
+            stormLightningAudioSource.spatialBlend = 0f;
+        }
+
+        stormLightningRoutine = StartCoroutine(StormLightningLoop(modeData));
+    }
+
+    void StopStormEffects()
+    {
+        if (!stormActive)
+        {
+            return;
+        }
+
+        stormActive = false;
+
+        if (stormLightningRoutine != null)
+        {
+            StopCoroutine(stormLightningRoutine);
+            stormLightningRoutine = null;
+        }
+
+        if (stormLightningLight != null)
+        {
+            Destroy(stormLightningLight.gameObject);
+            stormLightningLight = null;
+        }
+
+        if (stormLightningAudioSource != null)
+        {
+            Destroy(stormLightningAudioSource.gameObject);
+            stormLightningAudioSource = null;
+        }
+
+        if (stormRainInstance != null)
+        {
+            Destroy(stormRainInstance);
+            stormRainInstance = null;
+        }
+
+        stormFollowTarget = null;
+    }
+
+    void UpdateStormRainFollow()
+    {
+        if (!stormActive || stormRainInstance == null || stormFollowTarget == null)
+        {
+            return;
+        }
+
+        stormRainInstance.transform.position = stormFollowTarget.position + stormRainOffset;
+    }
+
+    void StartIceEffects(GameModeData modeData)
+    {
+        if (iceActive)
+        {
+            return;
+        }
+
+        iceActive = true;
+        iceFollowTarget = modeData.iceSnowFollowPlayer && playerController != null ? playerController.transform : null;
+        iceSnowOffset = modeData.iceSnowOffset;
+
+        if (modeData.iceSnowPrefab != null)
+        {
+            iceSnowInstance = Instantiate(modeData.iceSnowPrefab);
+            iceSnowInstance.name = "IceSnow";
+            iceSnowInstance.transform.SetParent(transform, false);
+            ConfigureIceSnowParticleSystems(iceSnowInstance, modeData);
+            if (iceFollowTarget != null)
+            {
+                UpdateIceSnowFollow();
+            }
+            else
+            {
+                iceSnowInstance.transform.position = modeData.iceSnowWorldPosition;
+            }
+        }
+    }
+
+    void StopIceEffects()
+    {
+        if (!iceActive)
+        {
+            return;
+        }
+
+        iceActive = false;
+
+        if (iceSnowInstance != null)
+        {
+            Destroy(iceSnowInstance);
+            iceSnowInstance = null;
+        }
+
+        iceFollowTarget = null;
+    }
+
+    void UpdateIceSnowFollow()
+    {
+        if (!iceActive || iceSnowInstance == null || iceFollowTarget == null)
+        {
+            return;
+        }
+
+        iceSnowInstance.transform.position = iceFollowTarget.position + iceSnowOffset;
+    }
+
+    void ConfigureIceSnowParticleSystems(GameObject instance, GameModeData modeData)
+    {
+        if (instance == null)
+        {
+            return;
+        }
+
+        ParticleSystem[] systems = instance.GetComponentsInChildren<ParticleSystem>(true);
+        foreach (var system in systems)
+        {
+            if (system == null) continue;
+            var shape = system.shape;
+            if (shape.enabled)
+            {
+                shape.scale = modeData.iceSnowAreaSize;
+            }
+
+            if (!modeData.iceSnowFollowPlayer)
+            {
+                var main = system.main;
+                main.simulationSpace = ParticleSystemSimulationSpace.World;
+            }
+        }
+    }
+
+    void SpawnLightningVisual(GameModeData modeData)
+    {
+        if (modeData.stormLightningPrefab == null)
+        {
+            return;
+        }
+
+        Vector3 spawnPos = GetLightningSpawnPosition(modeData);
+        float lifetime = Mathf.Max(0.1f, modeData.lightningVisualLifetime);
+        Quaternion baseRotation = Quaternion.Euler(modeData.lightningPrefabEuler);
+        Quaternion yawRotation = Quaternion.Euler(0f, Random.Range(0f, 360f), 0f);
+        GameObject instance = Instantiate(modeData.stormLightningPrefab, spawnPos, yawRotation * baseRotation);
+        DisableLightningArtifacts(instance);
+        StartCoroutine(CleanupLightningVisual(instance, lifetime));
+    }
+
+    Vector3 GetLightningSpawnPosition(GameModeData modeData)
+    {
+        Vector3 basePos = stormFollowTarget != null ? stormFollowTarget.position : Vector3.zero;
+        Vector3 forward = stormFollowTarget != null ? stormFollowTarget.forward : Vector3.forward;
+        Vector3 right = stormFollowTarget != null ? stormFollowTarget.right : Vector3.right;
+
+        float forwardMin = modeData.lightningForwardRange.x;
+        float forwardMax = Mathf.Max(forwardMin, modeData.lightningForwardRange.y);
+        float forwardOffset = Random.Range(forwardMin, forwardMax);
+        float horizontal = Random.Range(-Mathf.Abs(modeData.lightningHorizontalRange), Mathf.Abs(modeData.lightningHorizontalRange));
+        float height = Mathf.Max(0f, modeData.lightningSpawnHeight);
+
+        return basePos + forward * forwardOffset + right * horizontal + Vector3.up * height;
+    }
+
+    void PlayLightningSound(GameModeData modeData)
+    {
+        if (stormLightningAudioSource == null || modeData.lightningSound == null)
+        {
+            return;
+        }
+
+        float baseVolume = backgroundMusicSource != null ? backgroundMusicSource.volume : backgroundMusicVolume;
+        float louderThanBgm = Mathf.Clamp01(baseVolume + 0.15f);
+        float targetVolume = Mathf.Clamp01(Mathf.Max(modeData.lightningSoundVolume, louderThanBgm));
+        stormLightningAudioSource.volume = targetVolume;
+        stormLightningAudioSource.pitch = Random.Range(0.95f, 1.05f);
+        stormLightningAudioSource.PlayOneShot(modeData.lightningSound, 1f);
+    }
+
+    void DisableLightningArtifacts(GameObject instance)
+    {
+        if (instance == null)
+        {
+            return;
+        }
+
+        Transform[] allTransforms = instance.GetComponentsInChildren<Transform>(true);
+        foreach (Transform child in allTransforms)
+        {
+            if (child == null) continue;
+            string name = child.name;
+            if (name.Contains("BurntGround") || name.Contains("Burnt") || name.Contains("Scorch"))
+            {
+                child.gameObject.SetActive(false);
+            }
+        }
+    }
+
+    System.Collections.IEnumerator CleanupLightningVisual(GameObject instance, float lifetime)
+    {
+        if (instance == null)
+        {
+            yield break;
+        }
+
+        yield return new WaitForSeconds(lifetime);
+
+        if (instance == null)
+        {
+            yield break;
+        }
+
+        ParticleSystem[] systems = instance.GetComponentsInChildren<ParticleSystem>(true);
+        foreach (var system in systems)
+        {
+            if (system != null)
+            {
+                system.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+            }
+        }
+
+        TrailRenderer[] trails = instance.GetComponentsInChildren<TrailRenderer>(true);
+        foreach (var trail in trails)
+        {
+            if (trail != null)
+            {
+                trail.Clear();
+            }
+        }
+
+        Destroy(instance);
+    }
+
+    System.Collections.IEnumerator StormLightningLoop(GameModeData modeData)
+    {
+        while (stormActive)
+        {
+            float minInterval = Mathf.Max(0.2f, modeData.lightningIntervalRange.x);
+            float maxInterval = Mathf.Max(minInterval, modeData.lightningIntervalRange.y);
+            float waitTime = Random.Range(minInterval, maxInterval);
+            yield return new WaitForSeconds(waitTime);
+
+            yield return StartCoroutine(FlashLightningSeries(modeData));
+        }
+    }
+
+    System.Collections.IEnumerator FlashLightningSeries(GameModeData modeData)
+    {
+        if (stormLightningLight == null)
+        {
+            yield break;
+        }
+
+        int minFlashes = Mathf.Max(1, modeData.lightningFlashCountRange.x);
+        int maxFlashes = Mathf.Max(minFlashes, modeData.lightningFlashCountRange.y);
+        int flashCount = Random.Range(minFlashes, maxFlashes + 1);
+        float gap = Mathf.Max(0.02f, modeData.lightningFlashGap);
+
+        for (int i = 0; i < flashCount && stormActive; i++)
+        {
+            SpawnLightningVisual(modeData);
+            PlayLightningSound(modeData);
+            yield return StartCoroutine(FlashLightning(modeData));
+
+            if (i < flashCount - 1)
+            {
+                yield return new WaitForSeconds(gap);
+            }
+        }
+    }
+
+    System.Collections.IEnumerator FlashLightning(GameModeData modeData)
+    {
+        if (stormLightningLight == null)
+        {
+            yield break;
+        }
+
+        float duration = Mathf.Max(0.05f, modeData.lightningFlashDuration);
+        float half = duration * 0.5f;
+        float targetIntensity = Mathf.Max(0f, modeData.lightningIntensity);
+        float ambientBoost = Mathf.Max(0f, modeData.lightningAmbientBoost);
+        float targetFogDensity = stormLightningFogDensity;
+
+        float t = 0f;
+        while (t < half && stormActive)
+        {
+            t += Time.deltaTime;
+            float pct = Mathf.Clamp01(t / half);
+            stormLightningLight.intensity = Mathf.Lerp(0f, targetIntensity, pct);
+            RenderSettings.ambientIntensity = stormBaseAmbientIntensity + ambientBoost * pct;
+            RenderSettings.fogDensity = Mathf.Lerp(stormBaseFogDensity, targetFogDensity, pct);
+            yield return null;
+        }
+
+        t = 0f;
+        while (t < half && stormActive)
+        {
+            t += Time.deltaTime;
+            float pct = Mathf.Clamp01(t / half);
+            stormLightningLight.intensity = Mathf.Lerp(targetIntensity, 0f, pct);
+            RenderSettings.ambientIntensity = stormBaseAmbientIntensity + ambientBoost * (1f - pct);
+            RenderSettings.fogDensity = Mathf.Lerp(targetFogDensity, stormBaseFogDensity, pct);
+            yield return null;
+        }
+
+        stormLightningLight.intensity = 0f;
+        RenderSettings.ambientIntensity = stormBaseAmbientIntensity;
+        RenderSettings.fogDensity = stormBaseFogDensity;
+    }
     
     void OnDestroy()
     {
         RestoreEnvironmentSettings();
+    }
+
+    float GetModeMusicVolumeMultiplier()
+    {
+        GameModeData modeData = GameModeManager.Instance != null ? GameModeManager.Instance.GetSelectedModeData() : null;
+        if (modeData != null && modeData.modeType == GameMode.Hell)
+        {
+            return 0.6f;
+        }
+        return 1f;
+    }
+
+    void ApplyBackgroundMusicVolume()
+    {
+        if (backgroundMusicSource == null) return;
+        float clampedVolume = Mathf.Clamp01(backgroundMusicVolume);
+        backgroundMusicSource.volume = clampedVolume * GetModeMusicVolumeMultiplier();
+    }
+
+    public void SetBackgroundMusicVolume(float volume)
+    {
+        backgroundMusicVolume = Mathf.Clamp01(volume);
+        ApplyBackgroundMusicVolume();
+    }
+
+    public float GetBackgroundMusicVolume()
+    {
+        return backgroundMusicVolume;
     }
 
     public float GetGameTime() => gameTime;
@@ -364,5 +778,23 @@ public class GameManager : MonoBehaviour
     public float GetCurrentDistance()
     {
         return playerController != null ? playerController.GetTotalDistance() : 0f;
+    }
+
+    void RecordRunSnapshot()
+    {
+        if (hasRecordedRun)
+        {
+            return;
+        }
+
+        if (playerController != null)
+        {
+            finalScore = playerController.GetTotalDistance();
+        }
+
+        GameMode selectedMode = GameModeManager.Instance != null ? GameModeManager.Instance.GetSelectedMode() : GameMode.Endless;
+        CharacterData selectedCharacter = CharacterManager.Instance != null ? CharacterManager.Instance.GetSelectedCharacter() : null;
+        GameDataManager.Instance.RecordRun(selectedMode, finalScore, selectedCharacter);
+        hasRecordedRun = true;
     }
 }

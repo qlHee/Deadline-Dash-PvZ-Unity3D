@@ -1,0 +1,65 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9bd507d7bb5aa48b29a39c6cab80db05, type: 3}
+  m_Name: IceMode
+  m_EditorClassIdentifier: 
+  modeName: "\u51B0\u5C01\u6A21\u5F0F"
+  modeType: 5
+  initialHealthMultiplier: 1
+  regenRateMultiplier: 1
+  useDynamicDifficulty: 0
+  difficultyStages: []
+  minCountMultiplierStart: 1
+  minCountMultiplierEnd: 1
+  maxCountMultiplierStart: 1
+  maxCountMultiplierEnd: 1
+  spacingMultiplierStart: 1
+  spacingMultiplierEnd: 1
+  ambientLightMultiplier: 0.9
+  addSpecialLight: 0
+  specialLightColor: {r: 1, g: 0, b: 0, a: 1}
+  specialLightIntensity: 0.5
+  backgroundMusic: {fileID: 8300000, guid: cccc60356adc94cebad14952fd7cd7c5, type: 3}
+  roadPrefab: {fileID: 0}
+  roadMaterial: {fileID: 2100000, guid: 800bc6358f1f82643b8548bf5b0b5689, type: 2}
+  wallMaterial: {fileID: 2100000, guid: b2844171c48812f429b94252a4232512, type: 2}
+  grassPrefabs: []
+  spawnGrassOnGeneratedSegments: 1
+  stormRainPrefab: {fileID: 0}
+  stormRainOffset: {x: 0, y: 12, z: 0}
+  lightningIntervalRange: {x: 4, y: 9}
+  lightningFlashDuration: 0.25
+  lightningIntensity: 2.5
+  lightningColor: {r: 1, g: 1, b: 1, a: 1}
+  lightningAmbientBoost: 1.2
+  stormLightningPrefab: {fileID: 0}
+  lightningPrefabEuler: {x: 90, y: 0, z: 0}
+  lightningSpawnHeight: 16
+  lightningHorizontalRange: 6
+  lightningForwardRange: {x: 12, y: 20}
+  lightningFlashCountRange: {x: 1, y: 3}
+  lightningFlashGap: 0.12
+  lightningVisualLifetime: 0.6
+  lightningSound: {fileID: 0}
+  lightningSoundVolume: 0.85
+  stormFogDensity: 0.12
+  lightningFogDensity: 0.03
+  iceShooterWeightMultiplier: 6
+  iceMushroomWeightMultiplier: 6
+  iceSnowPrefab: {fileID: 100002, guid: f5c28fbb1085b8547896cbed7f9304e7, type: 3}
+  iceSnowOffset: {x: 0, y: 0, z: 0}
+  iceSnowFollowPlayer: 1
+  iceSnowWorldPosition: {x: 0, y: 0, z: 0}
+  iceSnowAreaSize: {x: 200, y: 30, z: 200}
+  isTimeLimited: 0
+  timeLimit: 180
+  scoreMultiplier: 1

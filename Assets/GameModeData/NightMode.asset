@@ -29,6 +29,12 @@ MonoBehaviour:
   specialLightColor: {r: 0.16470589, g: 0.14387326, b: 0.2509804, a: 1}
   specialLightIntensity: 6
   backgroundMusic: {fileID: 8300000, guid: cccc60356adc94cebad14952fd7cd7c5, type: 3}
+  roadPrefab: {fileID: 0}
+  roadMaterial: {fileID: 2100000, guid: 850c5f6930602194b8382f6499cde96c, type: 2}
+  wallMaterial: {fileID: 2100000, guid: 7b9ce2eb231780349a6f4b012ef4946c, type: 2}
+  grassPrefabs:
+  - {fileID: 6739804228592001243, guid: 6cdd667aa0034cd4dadc8d58a65fb098, type: 3}
+  spawnGrassOnGeneratedSegments: 1
   isTimeLimited: 0
   timeLimit: 180
   scoreMultiplier: 1

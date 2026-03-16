@@ -48,12 +48,18 @@ public class IceMushroom : MonoBehaviour
             if (player != null && !player.IsGameOver())
             {
                 hasTriggered = true;
-                
-                // 应用伤害
-                bool damaged = player.TakeDamage(damage, DamageType.Ice);
+
+                bool iceShieldBlocked = player.WasIceShieldAbsorbedThisFrame() || player.TryConsumeIceShield();
                 SpawnEffect(mushroomEffectPrefab, transform, mushroomEffectLifetime);
                 SpawnEffect(mushroomEffectPrefab2, transform, mushroomEffectLifetime2);
-                
+
+                if (iceShieldBlocked)
+                {
+                    return;
+                }
+
+                // 应用伤害
+                bool damaged = player.TakeDamage(damage, DamageType.Ice);
                 if (damaged)
                 {
                     // 创建冻结效果

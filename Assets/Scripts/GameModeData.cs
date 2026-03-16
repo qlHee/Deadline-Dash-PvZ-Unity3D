@@ -6,7 +6,8 @@ public enum GameMode
     Hell,
     Night,
     Storm,
-    TimeLimit
+    TimeLimit,
+    Ice
 }
 
 [System.Serializable]
@@ -74,6 +75,43 @@ public class GameModeData : ScriptableObject
     [Header("音乐设置")]
     [Tooltip("背景音乐")]
     public AudioClip backgroundMusic;
+
+    [Header("Road Settings")]
+    public GameObject roadPrefab;
+    public Material roadMaterial;
+    public Material wallMaterial;
+    public GameObject[] grassPrefabs;
+    public bool spawnGrassOnGeneratedSegments = true;
+
+    [Header("Storm Settings")]
+    public GameObject stormRainPrefab;
+    public Vector3 stormRainOffset = new Vector3(0f, 12f, 0f);
+    public Vector2 lightningIntervalRange = new Vector2(4f, 9f);
+    public float lightningFlashDuration = 0.25f;
+    public float lightningIntensity = 2.5f;
+    public Color lightningColor = Color.white;
+    public float lightningAmbientBoost = 1.2f;
+    public GameObject stormLightningPrefab;
+    public Vector3 lightningPrefabEuler = new Vector3(90f, 0f, 0f);
+    public float lightningSpawnHeight = 16f;
+    public float lightningHorizontalRange = 6f;
+    public Vector2 lightningForwardRange = new Vector2(12f, 20f);
+    public Vector2Int lightningFlashCountRange = new Vector2Int(1, 3);
+    public float lightningFlashGap = 0.12f;
+    public float lightningVisualLifetime = 1.8f;
+    public AudioClip lightningSound;
+    public float lightningSoundVolume = 0.85f;
+    public float stormFogDensity = 0.12f;
+    public float lightningFogDensity = 0.03f;
+
+    [Header("Ice Mode Settings")]
+    public float iceShooterWeightMultiplier = 1f;
+    public float iceMushroomWeightMultiplier = 1f;
+    public GameObject iceSnowPrefab;
+    public Vector3 iceSnowOffset = new Vector3(0f, 12f, 0f);
+    public bool iceSnowFollowPlayer = true;
+    public Vector3 iceSnowWorldPosition = Vector3.zero;
+    public Vector3 iceSnowAreaSize = new Vector3(60f, 30f, 60f);
     
     [Header("特殊规则")]
     [Tooltip("是否限时模式")]

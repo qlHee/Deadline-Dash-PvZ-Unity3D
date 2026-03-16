@@ -13,11 +13,13 @@ public class MainMenuUI : MonoBehaviour
     public Button hellModeButton;
     public Button nightModeButton;
     public Button stormModeButton;
+    public Button iceModeButton;
     public Button timeLimitModeButton;
     
     [Header("其他按钮")]
     public Button getNewCharacterButton;
     public Button gameRecordButton;
+    public GameDataUI gameDataUI;
     
     [Header("按钮视觉效果")]
     public Color normalColor = Color.white;
@@ -35,6 +37,8 @@ public class MainMenuUI : MonoBehaviour
         InitializeCharacterButtons();
         InitializeGameModeButtons();
         InitializeOtherButtons();
+
+        EnsureGameDataUI();
         
         int savedIndex = CharacterManager.Instance.GetSelectedCharacterIndex();
         SelectCharacter(savedIndex);
@@ -77,7 +81,12 @@ public class MainMenuUI : MonoBehaviour
         
         if (stormModeButton != null)
         {
-            stormModeButton.interactable = false;
+            stormModeButton.onClick.AddListener(OnStormModeClicked);
+        }
+
+        if (iceModeButton != null)
+        {
+            iceModeButton.onClick.AddListener(OnIceModeClicked);
         }
         
         if (timeLimitModeButton != null)
@@ -95,7 +104,7 @@ public class MainMenuUI : MonoBehaviour
         
         if (gameRecordButton != null)
         {
-            gameRecordButton.interactable = false;
+            gameRecordButton.interactable = true;
         }
     }
     
@@ -171,6 +180,34 @@ public class MainMenuUI : MonoBehaviour
     void OnTimeLimitModeClicked()
     {
         StartGameWithMode(GameMode.TimeLimit);
+    }
+
+    void OnStormModeClicked()
+    {
+        StartGameWithMode(GameMode.Storm);
+    }
+
+    void OnIceModeClicked()
+    {
+        StartGameWithMode(GameMode.Ice);
+    }
+    
+    void EnsureGameDataUI()
+    {
+        if (gameDataUI == null)
+        {
+            gameDataUI = GetComponent<GameDataUI>();
+        }
+
+        if (gameDataUI == null)
+        {
+            gameDataUI = gameObject.AddComponent<GameDataUI>();
+        }
+
+        if (gameDataUI != null)
+        {
+            gameDataUI.BindUI(gameRecordButton);
+        }
     }
     
     void StartGameWithMode(GameMode mode)

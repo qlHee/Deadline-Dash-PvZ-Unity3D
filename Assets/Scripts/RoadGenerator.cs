@@ -47,6 +47,28 @@ public class RoadGenerator : MonoBehaviour
         playerTransform = player.transform;
         playerController = player.GetComponent<PlayerController>();
 
+        GameModeData modeData = GameModeManager.Instance != null ? GameModeManager.Instance.GetSelectedModeData() : null;
+        if (modeData != null)
+        {
+            if (modeData.roadPrefab != null)
+            {
+                roadPrefab = modeData.roadPrefab;
+            }
+            if (modeData.roadMaterial != null)
+            {
+                roadMaterial = modeData.roadMaterial;
+            }
+            if (modeData.wallMaterial != null)
+            {
+                wallMaterial = modeData.wallMaterial;
+            }
+            if (modeData.grassPrefabs != null && modeData.grassPrefabs.Length > 0)
+            {
+                grassPrefabs = modeData.grassPrefabs;
+            }
+            spawnGrassOnGeneratedSegments = modeData.spawnGrassOnGeneratedSegments;
+        }
+
         lastRoadEndZ = playerTransform.position.z - roadLength;
 
         for (int i = 0; i < initialRoadCount; i++)

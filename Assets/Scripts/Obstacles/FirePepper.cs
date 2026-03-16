@@ -241,6 +241,10 @@ public class FirePepper : MonoBehaviour
         PlayerController pc = player.GetComponent<PlayerController>();
         if (pc != null && !pc.IsGameOver())
         {
+            if (pc.WasFireShieldAbsorbedThisFrame() || pc.TryConsumeFireShield())
+            {
+                return;
+            }
             if (pc.ApplyObstacleDamage(damage, DamageType.Fire))
             {
                 // 火爆辣椒属于高温状态，应用燃烧效果

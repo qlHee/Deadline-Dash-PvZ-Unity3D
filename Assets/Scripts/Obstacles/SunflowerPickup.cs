@@ -132,7 +132,7 @@ public class SunflowerPickup : MonoBehaviour
             {
                 hoveredPlayer = null;
             }
-            else if (Input.GetKeyDown(KeyCode.LeftShift) || Input.GetKeyDown(KeyCode.RightShift))
+            else if (Input.GetKeyDown(KeyCode.X) || Input.GetKeyDown(KeyCode.LeftShift) || Input.GetKeyDown(KeyCode.RightShift))
             {
                 TryHeal();
             }

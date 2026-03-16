@@ -148,6 +148,11 @@ public class PlayerController : MonoBehaviour
     private bool frozenTintActive = false;
     private bool burningTintActive = false;
     private Collider bodyCollider;
+    private bool isIceMode = false;
+    private int iceMoveDirection = 0;
+    private const float iceBoundarySnap = 0.05f;
+    private int pendingIceDirection = 0;
+    private float iceTargetX = 0f;
     private float verticalVelocity = 0f;
     private bool isGrounded = true;
     private float jumpRequestTime = Mathf.NegativeInfinity;
@@ -155,6 +160,8 @@ public class PlayerController : MonoBehaviour
     private float shieldExpireTime = 0f;
     private GameObject shieldEffectInstance;
     private ShieldType shieldEffectType = ShieldType.None;
+    private int lastIceShieldAbsorbFrame = -1;
+    private int lastFireShieldAbsorbFrame = -1;
     private float jumpForceMultiplier = 1f;
     private bool isJumpBoostActive = false;
     private float jumpBoostEndTime = 0f;
@@ -198,6 +205,8 @@ public class PlayerController : MonoBehaviour
         currentHealth = maxHealth;
         targetLaneX = transform.position.x;
         jumpForceMultiplier = 1f;
+        iceTargetX = targetLaneX;
+        UpdateIceModeState();
         
         // 初始化音效系统
         audioSource = gameObject.AddComponent<AudioSource>();
@@ -205,9 +214,30 @@ public class PlayerController : MonoBehaviour
         audioSource.volume = soundVolume;
     }
 
+    void UpdateIceModeState()
+    {
+        isIceMode = GameModeManager.Instance != null && GameModeManager.Instance.GetSelectedMode() == GameMode.Ice;
+        if (!isIceMode)
+        {
+            iceMoveDirection = 0;
+        }
+    }
+
     void Update()
     {
         if (isGameOver) return;
+
+        if (isIceMode && !isFrozen)
+        {
+            if (Input.GetKeyDown(KeyCode.LeftArrow) || Input.GetKeyDown(KeyCode.A))
+            {
+                pendingIceDirection = -1;
+            }
+            else if (Input.GetKeyDown(KeyCode.RightArrow) || Input.GetKeyDown(KeyCode.D))
+            {
+                pendingIceDirection = 1;
+            }
+        }
 
         if (Input.GetKeyDown(KeyCode.Space) && !isFrozen)
         {
@@ -230,7 +260,7 @@ public class PlayerController : MonoBehaviour
         }
 
         // 抓取（空中也可） - 使用Shift键（左右都可）
-        if ((Input.GetKeyDown(KeyCode.LeftShift) || Input.GetKeyDown(KeyCode.RightShift)) && !isFrozen && animator != null)
+        if ((Input.GetKeyDown(KeyCode.X) || Input.GetKeyDown(KeyCode.LeftShift) || Input.GetKeyDown(KeyCode.RightShift)) && !isFrozen && animator != null)
         {
             animator.ResetTrigger(AnimSlideTriggerHash);
             animator.SetTrigger(AnimGrabTriggerHash);
@@ -305,19 +335,53 @@ public class PlayerController : MonoBehaviour
         float currentSpeed = Mathf.Lerp(sourceSpeed, targetSpeed, deltaTime * speedChangeRate);
 
         float horizontalInput = 0f;
-        if (Input.GetKey(KeyCode.LeftArrow) || Input.GetKey(KeyCode.A))
+        if (isIceMode)
         {
-            horizontalInput = -1f;
+            if (pendingIceDirection != 0)
+            {
+                iceMoveDirection = pendingIceDirection;
+                pendingIceDirection = 0;
+                iceTargetX = iceMoveDirection < 0 ? leftBoundary : rightBoundary;
+                targetLaneX = iceTargetX;
+            }
+
+            if (iceMoveDirection < 0 && rb.position.x <= leftBoundary + iceBoundarySnap)
+            {
+                iceMoveDirection = 0;
+                iceTargetX = leftBoundary;
+            }
+            else if (iceMoveDirection > 0 && rb.position.x >= rightBoundary - iceBoundarySnap)
+            {
+                iceMoveDirection = 0;
+                iceTargetX = rightBoundary;
+            }
         }
-        else if (Input.GetKey(KeyCode.RightArrow) || Input.GetKey(KeyCode.D))
+        else
         {
-            horizontalInput = 1f;
+            if (Input.GetKey(KeyCode.LeftArrow) || Input.GetKey(KeyCode.A))
+            {
+                horizontalInput = -1f;
+            }
+            else if (Input.GetKey(KeyCode.RightArrow) || Input.GetKey(KeyCode.D))
+            {
+                horizontalInput = 1f;
+            }
+
+            targetLaneX += horizontalInput * horizontalSpeed * deltaTime;
+            targetLaneX = Mathf.Clamp(targetLaneX, leftBoundary, rightBoundary);
         }
 
-        targetLaneX += horizontalInput * horizontalSpeed * deltaTime;
-        targetLaneX = Mathf.Clamp(targetLaneX, leftBoundary, rightBoundary);
-
-        float desiredHorizontalVelocity = (targetLaneX - rb.position.x) / Mathf.Max(deltaTime, 0.0001f);
+        float desiredHorizontalVelocity;
+        if (isIceMode)
+        {
+            float targetX = iceMoveDirection == 0 ? rb.position.x : iceTargetX;
+            float nextX = Mathf.MoveTowards(rb.position.x, targetX, horizontalSpeed * deltaTime);
+            desiredHorizontalVelocity = (nextX - rb.position.x) / Mathf.Max(deltaTime, 0.0001f);
+        }
+        else
+        {
+            desiredHorizontalVelocity = (targetLaneX - rb.position.x) / Mathf.Max(deltaTime, 0.0001f);
+        }
         if (Mathf.Abs(desiredHorizontalVelocity) < 0.01f)
         {
             desiredHorizontalVelocity = 0f;
@@ -424,12 +488,24 @@ public class PlayerController : MonoBehaviour
             {
                 if (!IsGameOver())
                 {
+                    if (WasFireShieldAbsorbedThisFrame() || TryConsumeFireShield())
+                    {
+                        return;
+                    }
                     if (TakeDamage(fireStump.damage, DamageType.Fire))
                     {
                         ApplyBurningEffect(fireStump.burningDuration, fireStump.burningDamagePerSecond);
                     }
                 }
                 return;
+            }
+
+            if (other.GetComponent<IceMushroom>() != null || other.GetComponent<IcePeaProjectile>() != null)
+            {
+                if (WasIceShieldAbsorbedThisFrame() || TryConsumeIceShield())
+                {
+                    return;
+                }
             }
             
             ApplyObstacleCollision(other.gameObject);
@@ -438,6 +514,16 @@ public class PlayerController : MonoBehaviour
 
     void ApplyObstacleCollision(GameObject obstacleObj)
     {
+        if (obstacleObj == null)
+        {
+            return;
+        }
+
+        if (ShouldIgnoreObstacleCollision(obstacleObj))
+        {
+            return;
+        }
+
         if (Time.time - lastObstacleDamageTime < obstacleDamageCooldown)
         {
             return;
@@ -446,6 +532,67 @@ public class PlayerController : MonoBehaviour
         lastObstacleDamageTime = Time.time;
         float damage = GetObstacleDamage(obstacleObj);
         TakeDamage(damage, DamageType.Normal);
+    }
+
+    bool ShouldIgnoreObstacleCollision(GameObject obstacleObj)
+    {
+        if (obstacleObj.GetComponent<PeaProjectile>() != null)
+        {
+            return true;
+        }
+        if (obstacleObj.GetComponent<IcePeaProjectile>() != null)
+        {
+            return true;
+        }
+        if (obstacleObj.GetComponent<SpikeProjectile>() != null)
+        {
+            return true;
+        }
+        if (obstacleObj.GetComponent<Nut>() != null)
+        {
+            return true;
+        }
+        if (obstacleObj.GetComponent<TallNut>() != null)
+        {
+            return true;
+        }
+        if (obstacleObj.GetComponent<Cactus>() != null)
+        {
+            return true;
+        }
+        if (obstacleObj.GetComponent<CattailShooter>() != null)
+        {
+            return true;
+        }
+        if (obstacleObj.GetComponent<IceMushroom>() != null)
+        {
+            return true;
+        }
+        if (obstacleObj.GetComponent<CherryBomb>() != null)
+        {
+            return true;
+        }
+        if (obstacleObj.GetComponent<PotatoMine>() != null)
+        {
+            return true;
+        }
+        if (obstacleObj.GetComponent<FirePepper>() != null)
+        {
+            return true;
+        }
+        if (obstacleObj.GetComponent<SunflowerPickup>() != null)
+        {
+            return true;
+        }
+        if (obstacleObj.GetComponent<ShieldPickup>() != null)
+        {
+            return true;
+        }
+        if (obstacleObj.GetComponent<JumpBoostPickup>() != null)
+        {
+            return true;
+        }
+        return false;
     }
 
     float GetObstacleDamage(GameObject obstacleObj)
@@ -506,7 +653,17 @@ public class PlayerController : MonoBehaviour
 
         if (IsShieldBlockingDamage(damageType))
         {
+            bool blockedFire = activeShield == ShieldType.Fire && damageType == DamageType.Fire;
+            bool blockedIce = activeShield == ShieldType.Ice && damageType == DamageType.Ice;
             ConsumeShield(true);
+            if (blockedFire)
+            {
+                lastFireShieldAbsorbFrame = Time.frameCount;
+            }
+            if (blockedIce)
+            {
+                lastIceShieldAbsorbFrame = Time.frameCount;
+            }
             return false;
         }
 
@@ -683,6 +840,52 @@ public class PlayerController : MonoBehaviour
         activeShield = type;
         shieldExpireTime = Time.time + finalDuration;
         RefreshShieldEffect();
+    }
+
+    public bool TryConsumeFireShield()
+    {
+        if (activeShield != ShieldType.Fire)
+        {
+            return false;
+        }
+
+        if (Time.time >= shieldExpireTime)
+        {
+            ConsumeShield(false);
+            return false;
+        }
+
+        ConsumeShield(true);
+        lastFireShieldAbsorbFrame = Time.frameCount;
+        return true;
+    }
+
+    public bool WasFireShieldAbsorbedThisFrame()
+    {
+        return lastFireShieldAbsorbFrame == Time.frameCount;
+    }
+
+    public bool TryConsumeIceShield()
+    {
+        if (activeShield != ShieldType.Ice)
+        {
+            return false;
+        }
+
+        if (Time.time >= shieldExpireTime)
+        {
+            ConsumeShield(false);
+            return false;
+        }
+
+        ConsumeShield(true);
+        lastIceShieldAbsorbFrame = Time.frameCount;
+        return true;
+    }
+
+    public bool WasIceShieldAbsorbedThisFrame()
+    {
+        return lastIceShieldAbsorbFrame == Time.frameCount;
     }
 
     public void ApplyJumpBoost(float duration, float multiplier)

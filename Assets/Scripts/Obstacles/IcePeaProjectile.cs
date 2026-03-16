@@ -68,6 +68,12 @@ public class IcePeaProjectile : MonoBehaviour
                 return;
             }
 
+            if (player.WasIceShieldAbsorbedThisFrame() || player.TryConsumeIceShield())
+            {
+                Destroy(gameObject);
+                return;
+            }
+
             bool damaged = player.TakeDamage(damage, DamageType.Ice);
             if (damaged)
             {

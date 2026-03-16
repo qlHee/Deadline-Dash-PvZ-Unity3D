@@ -69,6 +69,12 @@ public class PeaProjectile : MonoBehaviour
                 return;
             }
 
+            if (isBurning && (player.WasFireShieldAbsorbedThisFrame() || player.TryConsumeFireShield()))
+            {
+                Destroy(gameObject);
+                return;
+            }
+
             bool damaged = player.TakeDamage(damage, isBurning ? DamageType.Fire : DamageType.Normal);
             if (damaged && isBurning)
             {

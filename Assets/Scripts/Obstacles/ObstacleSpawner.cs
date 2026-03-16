@@ -2179,6 +2179,8 @@ public class ObstacleSpawner : MonoBehaviour
                 weightedTypes.Add(ObstacleType.FireStump);
             }
         }
+
+        ApplyIceModeWeightBoost(weightedTypes, availableTypes);
         
         // 使用加权列表随机选择
         if (weightedTypes.Count > 0)
@@ -2189,6 +2191,46 @@ public class ObstacleSpawner : MonoBehaviour
         {
             // 备用方案：使用原始可用列表
             return availableTypes[Random.Range(0, availableTypes.Count)];
+        }
+    }
+
+    void ApplyIceModeWeightBoost(List<ObstacleType> weightedTypes, List<ObstacleType> availableTypes)
+    {
+        GameModeData modeData = GameModeManager.Instance != null ? GameModeManager.Instance.GetSelectedModeData() : null;
+        if (modeData == null || modeData.modeType != GameMode.Ice)
+        {
+            return;
+        }
+
+        BoostWeightedType(weightedTypes, availableTypes, ObstacleType.IceShooter, modeData.iceShooterWeightMultiplier);
+        BoostWeightedType(weightedTypes, availableTypes, ObstacleType.IceMushroom, modeData.iceMushroomWeightMultiplier);
+    }
+
+    void BoostWeightedType(List<ObstacleType> weightedTypes, List<ObstacleType> availableTypes, ObstacleType type, float multiplier)
+    {
+        if (multiplier <= 1f || !availableTypes.Contains(type))
+        {
+            return;
+        }
+
+        int currentCount = 0;
+        for (int i = 0; i < weightedTypes.Count; i++)
+        {
+            if (weightedTypes[i] == type)
+            {
+                currentCount++;
+            }
+        }
+
+        if (currentCount == 0)
+        {
+            currentCount = 1;
+        }
+
+        int extraCount = Mathf.RoundToInt(currentCount * (multiplier - 1f));
+        for (int i = 0; i < extraCount; i++)
+        {
+            weightedTypes.Add(type);
         }
     }
 

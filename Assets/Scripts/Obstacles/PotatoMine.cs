@@ -113,7 +113,10 @@ public class PotatoMine : MonoBehaviour
                 // 确保爆炸位置在地表
                 transform.position = groundPosition;
 
-                pc.ApplyObstacleDamage(damage, DamageType.Fire);
+                if (!(pc.WasFireShieldAbsorbedThisFrame() || pc.TryConsumeFireShield()))
+                {
+                    pc.ApplyObstacleDamage(damage, DamageType.Fire);
+                }
                 SpawnTriggerEffect(GetExplosionPosition());
                 // 触发后禁用碰撞，避免重复
                 if (cachedColliders != null)

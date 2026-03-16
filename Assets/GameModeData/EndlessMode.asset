@@ -18,11 +18,23 @@ MonoBehaviour:
   regenRateMultiplier: 1
   useDynamicDifficulty: 0
   difficultyStages: []
+  minCountMultiplierStart: 1
+  minCountMultiplierEnd: 1
+  maxCountMultiplierStart: 1
+  maxCountMultiplierEnd: 1
+  spacingMultiplierStart: 1
+  spacingMultiplierEnd: 1
   ambientLightMultiplier: 1
   addSpecialLight: 0
   specialLightColor: {r: 1, g: 0, b: 0, a: 1}
   specialLightIntensity: 0.5
   backgroundMusic: {fileID: 8300000, guid: cccc60356adc94cebad14952fd7cd7c5, type: 3}
+  roadPrefab: {fileID: 0}
+  roadMaterial: {fileID: 0}
+  wallMaterial: {fileID: 0}
+  grassPrefabs:
+  - {fileID: 6739804228592001243, guid: 6cdd667aa0034cd4dadc8d58a65fb098, type: 3}
+  spawnGrassOnGeneratedSegments: 1
   isTimeLimited: 0
   timeLimit: 180
   scoreMultiplier: 1
