@@ -36,12 +36,31 @@ public class GameUI : MonoBehaviour
     public float pulseSpeed = 3f;
     
     [Header("血条设置")]
-    private const float MAX_DISPLAY_HEALTH = 300f;
+    private float maxDisplayHealth = 300f;
+    
+    [Header("限时模式倒计时")]
+    public TextMeshProUGUI timeLimitCountdownText;
+    private bool isTimeLimitMode = false;
 
     void Start()
     {
         playerController = FindObjectOfType<PlayerController>();
         gameManager = FindObjectOfType<GameManager>();
+
+        if (GameModeManager.Instance.GetSelectedMode() == GameMode.Hell)
+        {
+            maxDisplayHealth = 600f;
+        }
+        else
+        {
+            maxDisplayHealth = 300f;
+        }
+        
+        isTimeLimitMode = (GameModeManager.Instance.GetSelectedMode() == GameMode.TimeLimit);
+        if (timeLimitCountdownText != null)
+        {
+            timeLimitCountdownText.gameObject.SetActive(isTimeLimitMode);
+        }
 
         SetupHealthSliderVisuals();
         ResizeHealthSliderByMaxHealth();
@@ -77,6 +96,13 @@ public class GameUI : MonoBehaviour
                     float distance = gameManager.GetCurrentDistance();
                     distanceText.text = $"距离: {distance:F1} m";
                 }
+                
+                if (isTimeLimitMode && timeLimitCountdownText != null && playerController != null)
+                {
+                    float maxHealth = playerController.GetMaxHealth();
+                    int countdown = Mathf.CeilToInt(maxHealth / 8f);
+                    timeLimitCountdownText.text = $"{countdown}秒";
+                }
             }
 
             if (playerController != null)
@@ -86,19 +112,37 @@ public class GameUI : MonoBehaviour
 
                 if (healthSlider != null)
                 {
-                    float displayMaxHealth = Mathf.Min(maxHealth, MAX_DISPLAY_HEALTH);
-                    if (!Mathf.Approximately(healthSlider.maxValue, displayMaxHealth))
+                    float displayMaxHealth = Mathf.Min(maxHealth, maxDisplayHealth);
+                    
+                    if (isTimeLimitMode)
                     {
-                        healthSlider.maxValue = displayMaxHealth;
-                        ResizeHealthSliderByMaxHealth();
+                        healthSlider.maxValue = maxHealth;
+                        healthSlider.value = currentHealth;
+                        
+                        RectTransform rt = healthSlider.GetComponent<RectTransform>();
+                        if (rt != null)
+                        {
+                            float width = 4f * maxHealth;
+                            float height = 40f;
+                            rt.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, width);
+                            rt.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, height);
+                        }
                     }
-                    healthSlider.value = Mathf.Min(currentHealth, MAX_DISPLAY_HEALTH);
+                    else
+                    {
+                        if (!Mathf.Approximately(healthSlider.maxValue, displayMaxHealth))
+                        {
+                            healthSlider.maxValue = displayMaxHealth;
+                            ResizeHealthSliderByMaxHealth();
+                        }
+                        healthSlider.value = Mathf.Min(currentHealth, maxDisplayHealth);
+                    }
                 }
                 
                 // 更新血量数值文本
                 if (healthValueText != null)
                 {
-                    if (maxHealth > MAX_DISPLAY_HEALTH)
+                    if (maxHealth > maxDisplayHealth)
                     {
                         healthValueText.gameObject.SetActive(true);
                         healthValueText.text = $"{currentHealth:F0}/{maxHealth:F0}";
@@ -273,10 +317,12 @@ public class GameUI : MonoBehaviour
     {
         if (playerController == null || healthSlider == null) return;
         float maxHealth = playerController.GetMaxHealth();
-        // 血条宽度最多显示300点血量
-        float displayMaxHealth = Mathf.Min(maxHealth, MAX_DISPLAY_HEALTH);
-        float width = 4f * displayMaxHealth; // 最大 300 -> 1200
-        float height = 40f; // 高度固定 40
+        float displayMaxHealth = Mathf.Min(maxHealth, maxDisplayHealth);
+        
+        float baseDisplayHealth = 300f;
+        float width = 4f * baseDisplayHealth;
+        float height = 40f;
+        
         RectTransform rt = healthSlider.GetComponent<RectTransform>();
         if (rt != null)
         {

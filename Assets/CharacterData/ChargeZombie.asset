@@ -21,6 +21,6 @@ MonoBehaviour:
   horizontalSpeed: 11
   jumpForce: 9
   gravity: 20
-  maxHealth: 150
-  regenDelay: 3
+  maxHealth: 170
+  regenDelay: 2
   regenRate: 20

@@ -26,6 +26,28 @@ public class GameSetupEditor : EditorWindow
         EditorUtility.DisplayDialog("完成", "4个角色数据资源已创建完成！\n路径: Assets/CharacterData", "确定");
     }
     
+    [MenuItem("游戏配置/一键创建游戏模式数据")]
+    public static void CreateGameModeData()
+    {
+        string folderPath = "Assets/GameModeData";
+        
+        if (!AssetDatabase.IsValidFolder(folderPath))
+        {
+            AssetDatabase.CreateFolder("Assets", "GameModeData");
+        }
+        
+        CreateEndlessMode(folderPath);
+        CreateHellMode(folderPath);
+        CreateNightMode(folderPath);
+        CreateTimeLimitMode(folderPath);
+        
+        AssetDatabase.SaveAssets();
+        AssetDatabase.Refresh();
+        
+        Debug.Log("[游戏配置] 游戏模式数据资源创建完成！路径: " + folderPath);
+        EditorUtility.DisplayDialog("完成", "游戏模式数据资源已创建完成！\n路径: Assets/GameModeData", "确定");
+    }
+    
     static void CreateAthleticZombie(string folderPath)
     {
         string assetPath = folderPath + "/AthleticZombie.asset";
@@ -379,5 +401,199 @@ public class GameSetupEditor : EditorWindow
                       "详细说明请查看: 快速配置指南.md";
         
         EditorUtility.DisplayDialog("配置流程", guide, "确定");
+    }
+    
+    static void CreateEndlessMode(string folderPath)
+    {
+        string assetPath = folderPath + "/EndlessMode.asset";
+        
+        if (AssetDatabase.LoadAssetAtPath<GameModeData>(assetPath) != null)
+        {
+            Debug.Log("[游戏配置] EndlessMode 已存在，跳过创建");
+            return;
+        }
+        
+        GameModeData data = ScriptableObject.CreateInstance<GameModeData>();
+        data.modeName = "无尽模式";
+        data.modeType = GameMode.Endless;
+        data.initialHealthMultiplier = 1f;
+        data.regenRateMultiplier = 1f;
+        data.useDynamicDifficulty = false;
+        data.ambientLightMultiplier = 1f;
+        data.addSpecialLight = false;
+        data.isTimeLimited = false;
+        data.scoreMultiplier = 1f;
+        
+        AssetDatabase.CreateAsset(data, assetPath);
+        Debug.Log("[游戏配置] 创建游戏模式: 无尽模式");
+    }
+    
+    static void CreateHellMode(string folderPath)
+    {
+        string assetPath = folderPath + "/HellMode.asset";
+        
+        if (AssetDatabase.LoadAssetAtPath<GameModeData>(assetPath) != null)
+        {
+            Debug.Log("[游戏配置] HellMode 已存在，跳过创建");
+            return;
+        }
+        
+        GameModeData data = ScriptableObject.CreateInstance<GameModeData>();
+        data.modeName = "地狱模式";
+        data.modeType = GameMode.Hell;
+        
+        data.initialHealthMultiplier = 2f;
+        data.regenRateMultiplier = 2f;
+        
+        data.useDynamicDifficulty = true;
+        data.difficultyStages = new DifficultyStage[8];
+        
+        data.difficultyStages[0] = new DifficultyStage { distanceStart = 0f, distanceEnd = 200f, difficultyStart = 1.0f, difficultyEnd = 1.6f };
+        data.difficultyStages[1] = new DifficultyStage { distanceStart = 200f, distanceEnd = 400f, difficultyStart = 1.6f, difficultyEnd = 2.4f };
+        data.difficultyStages[2] = new DifficultyStage { distanceStart = 400f, distanceEnd = 800f, difficultyStart = 2.4f, difficultyEnd = 2.8f };
+        data.difficultyStages[3] = new DifficultyStage { distanceStart = 800f, distanceEnd = 1600f, difficultyStart = 2.8f, difficultyEnd = 3.3f };
+        data.difficultyStages[4] = new DifficultyStage { distanceStart = 1600f, distanceEnd = 3200f, difficultyStart = 3.3f, difficultyEnd = 3.8f };
+        data.difficultyStages[5] = new DifficultyStage { distanceStart = 3200f, distanceEnd = 6400f, difficultyStart = 3.8f, difficultyEnd = 4.5f };
+        data.difficultyStages[6] = new DifficultyStage { distanceStart = 6400f, distanceEnd = 12800f, difficultyStart = 4.5f, difficultyEnd = 5.0f };
+        data.difficultyStages[7] = new DifficultyStage { distanceStart = 12800f, distanceEnd = 999999f, difficultyStart = 5.0f, difficultyEnd = 5.0f };
+        
+        data.minCountMultiplierStart = 1.0f;
+        data.minCountMultiplierEnd = 1.4f;
+        data.maxCountMultiplierStart = 1.0f;
+        data.maxCountMultiplierEnd = 1.41f;
+        data.spacingMultiplierStart = 1.2f;
+        data.spacingMultiplierEnd = 0.1f;
+        
+        data.ambientLightMultiplier = 0.6f;
+        data.addSpecialLight = true;
+        data.specialLightColor = new Color(228f/255f, 18f/255f, 51f/255f);
+        data.specialLightIntensity = 0.5f;
+        
+        data.isTimeLimited = false;
+        data.scoreMultiplier = 1f;
+        
+        AssetDatabase.CreateAsset(data, assetPath);
+        Debug.Log("[游戏配置] 创建游戏模式: 地狱模式");
+        Debug.Log("  - 血量倍率: 2x");
+        Debug.Log("  - 回血倍率: 2x");
+        Debug.Log("  - 动态难度: 8个阶段");
+        Debug.Log("  - 环境光照: 0.6x (暗红色灯光)");
+    }
+    
+    static void CreateNightMode(string folderPath)
+    {
+        string assetPath = folderPath + "/NightMode.asset";
+        
+        if (AssetDatabase.LoadAssetAtPath<GameModeData>(assetPath) != null)
+        {
+            Debug.Log("[游戏配置] NightMode 已存在，跳过创建");
+            return;
+        }
+        
+        GameModeData data = ScriptableObject.CreateInstance<GameModeData>();
+        data.modeName = "黑夜模式";
+        data.modeType = GameMode.Night;
+        
+        data.initialHealthMultiplier = 1f;
+        data.regenRateMultiplier = 1f;
+        
+        data.useDynamicDifficulty = false;
+        
+        data.minCountMultiplierStart = 1.0f;
+        data.minCountMultiplierEnd = 1.0f;
+        data.maxCountMultiplierStart = 1.0f;
+        data.maxCountMultiplierEnd = 1.0f;
+        data.spacingMultiplierStart = 1.0f;
+        data.spacingMultiplierEnd = 1.0f;
+        
+        data.ambientLightMultiplier = 0.45f;
+        data.addSpecialLight = true;
+        data.specialLightColor = new Color(228f/255f, 18f/255f, 51f/255f);
+        data.specialLightIntensity = 1.5f;
+        
+        data.isTimeLimited = false;
+        data.scoreMultiplier = 1f;
+        
+        AssetDatabase.CreateAsset(data, assetPath);
+        Debug.Log("[游戏配置] 创建游戏模式: 黑夜模式");
+        Debug.Log("  - 环境光照: 0.45x");
+        Debug.Log("  - 特殊灯光: 启用, 强度 1.5");
+    }
+    
+    static void CreateTimeLimitMode(string folderPath)
+    {
+        string assetPath = folderPath + "/TimeLimitMode.asset";
+        
+        if (AssetDatabase.LoadAssetAtPath<GameModeData>(assetPath) != null)
+        {
+            Debug.Log("[游戏配置] TimeLimitMode 已存在，跳过创建");
+            return;
+        }
+        
+        GameModeData data = ScriptableObject.CreateInstance<GameModeData>();
+        data.modeName = "限时模式";
+        data.modeType = GameMode.TimeLimit;
+        
+        data.initialHealthMultiplier = 1f;
+        data.regenRateMultiplier = 1f;
+        
+        data.useDynamicDifficulty = false;
+        
+        data.minCountMultiplierStart = 1.0f;
+        data.minCountMultiplierEnd = 1.0f;
+        data.maxCountMultiplierStart = 1.0f;
+        data.maxCountMultiplierEnd = 1.0f;
+        data.spacingMultiplierStart = 1.0f;
+        data.spacingMultiplierEnd = 1.0f;
+        
+        data.ambientLightMultiplier = 1f;
+        data.addSpecialLight = false;
+        
+        data.isTimeLimited = true;
+        data.scoreMultiplier = 1f;
+        
+        AssetDatabase.CreateAsset(data, assetPath);
+        Debug.Log("[游戏配置] 创建游戏模式: 限时模式");
+        Debug.Log("  - 每秒减少5点血量上限");
+    }
+    
+    [MenuItem("游戏配置/自动配置GameModeManager")]
+    public static void AutoConfigureGameModeManager()
+    {
+        GameModeManager manager = FindObjectOfType<GameModeManager>();
+        
+        if (manager == null)
+        {
+            GameObject go = new GameObject("GameModeManager");
+            manager = go.AddComponent<GameModeManager>();
+            Debug.Log("[游戏配置] 创建了新的 GameModeManager 对象");
+        }
+        
+        GameModeData endlessMode = AssetDatabase.LoadAssetAtPath<GameModeData>("Assets/GameModeData/EndlessMode.asset");
+        GameModeData hellMode = AssetDatabase.LoadAssetAtPath<GameModeData>("Assets/GameModeData/HellMode.asset");
+        GameModeData nightMode = AssetDatabase.LoadAssetAtPath<GameModeData>("Assets/GameModeData/NightMode.asset");
+        GameModeData timeLimitMode = AssetDatabase.LoadAssetAtPath<GameModeData>("Assets/GameModeData/TimeLimitMode.asset");
+        
+        if (endlessMode == null || hellMode == null || nightMode == null || timeLimitMode == null)
+        {
+            EditorUtility.DisplayDialog("错误", "游戏模式数据加载失败！\n请先运行菜单: 游戏配置 > 一键创建游戏模式数据", "确定");
+            return;
+        }
+        
+        SerializedObject so = new SerializedObject(manager);
+        SerializedProperty modesProp = so.FindProperty("gameModes");
+        modesProp.arraySize = 4;
+        modesProp.GetArrayElementAtIndex(0).objectReferenceValue = endlessMode;
+        modesProp.GetArrayElementAtIndex(1).objectReferenceValue = hellMode;
+        modesProp.GetArrayElementAtIndex(2).objectReferenceValue = nightMode;
+        modesProp.GetArrayElementAtIndex(3).objectReferenceValue = timeLimitMode;
+        
+        so.ApplyModifiedProperties();
+        EditorUtility.SetDirty(manager);
+        
+        Debug.Log("[渨戏配置] GameModeManager 配置完成！已加载4个渨戏模式");
+        EditorUtility.DisplayDialog("完成", "GameModeManager 已自动配置完成！\n已加载4个渨戏模式", "确定");
+        
+        Selection.activeGameObject = manager.gameObject;
     }
 }

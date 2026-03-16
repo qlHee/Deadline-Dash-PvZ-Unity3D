@@ -350,8 +350,29 @@ public class ObstacleSpawner : MonoBehaviour
     {
         if (playerController == null) return;
 
-        // 获取当前玩家得分（这里用总距离作为得分）
-        float playerScore = 0f;
+        float playerScore = playerController.GetTotalDistance();
+        
+        GameModeData modeData = GameModeManager.Instance.GetSelectedModeData();
+        if (modeData != null && modeData.useDynamicDifficulty)
+        {
+            targetDifficultyFactor = modeData.GetDifficultyAtDistance(playerScore);
+            
+            float minCountMult = modeData.GetMinCountMultiplier(targetDifficultyFactor);
+            float maxCountMult = modeData.GetMaxCountMultiplier(targetDifficultyFactor);
+            float spacingMult = modeData.GetSpacingMultiplier(targetDifficultyFactor);
+            
+            minObstacleDistance = 8f * spacingMult;
+            maxObstacleDistance = 15f * spacingMult;
+            
+            currentDifficultyFactor = targetDifficultyFactor;
+            
+            if (playerScore > 0 && playerScore % 100f < 0.5f)
+            {
+                Debug.Log($"[游戏模式难度] 距离: {playerScore:F1}m, 难度: {currentDifficultyFactor:F2}, 间距: {minObstacleDistance:F1}-{maxObstacleDistance:F1}");
+            }
+            
+            return;
+        }
         
         // 从PlayerController中获取玩家总行走距离作为得分
         playerScore = playerController.GetTotalDistance();

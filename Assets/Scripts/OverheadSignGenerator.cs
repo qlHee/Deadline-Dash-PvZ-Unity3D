@@ -90,14 +90,18 @@ public class OverheadSignGenerator : MonoBehaviour
         textObj.transform.localRotation = Quaternion.identity;
 
         TextMesh textMesh = textObj.AddComponent<TextMesh>();
-        textMesh.text =
-            // "操作提示\n" +
-            // "← / A : 向左\n" +
-            // "→ / D : 向右\n" +
-            // "↑ / W : 加速\n" +
-            // "↓ / S : 减速\n" +
-            // "Space : 跳跃";
-            "无尽模式";
+        
+        string modeName = "无尽模式";
+        if (GameModeManager.Instance != null)
+        {
+            GameModeData modeData = GameModeManager.Instance.GetSelectedModeData();
+            if (modeData != null)
+            {
+                modeName = modeData.modeName;
+            }
+        }
+        
+        textMesh.text = modeName;
         textMesh.color = Color.white;
         textMesh.anchor = TextAnchor.MiddleCenter;
         textMesh.alignment = TextAlignment.Center;

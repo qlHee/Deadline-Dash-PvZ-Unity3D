@@ -1,0 +1,34 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9bd507d7bb5aa48b29a39c6cab80db05, type: 3}
+  m_Name: TimeLimitMode
+  m_EditorClassIdentifier: 
+  modeName: "\u9650\u65F6\u6A21\u5F0F"
+  modeType: 4
+  initialHealthMultiplier: 1
+  regenRateMultiplier: 1
+  useDynamicDifficulty: 0
+  difficultyStages: []
+  minCountMultiplierStart: 1
+  minCountMultiplierEnd: 1
+  maxCountMultiplierStart: 1
+  maxCountMultiplierEnd: 1
+  spacingMultiplierStart: 1
+  spacingMultiplierEnd: 1
+  ambientLightMultiplier: 1
+  addSpecialLight: 0
+  specialLightColor: {r: 1, g: 0, b: 0, a: 1}
+  specialLightIntensity: 0.5
+  backgroundMusic: {fileID: 8300000, guid: cccc60356adc94cebad14952fd7cd7c5, type: 3}
+  isTimeLimited: 1
+  timeLimit: 180
+  scoreMultiplier: 1

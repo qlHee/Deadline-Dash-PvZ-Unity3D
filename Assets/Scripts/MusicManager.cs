@@ -20,14 +20,23 @@ public class MusicManager : MonoBehaviour
         
         gameManager = FindObjectOfType<GameManager>();
         
-        if (backgroundMusic != null)
+        bool shouldPlayOwnMusic = true;
+        
+        if (GameModeManager.Instance != null)
+        {
+            GameModeData modeData = GameModeManager.Instance.GetSelectedModeData();
+            if (modeData != null && modeData.backgroundMusic != null)
+            {
+                shouldPlayOwnMusic = false;
+                Debug.Log("[MusicManager] 游戏模式系统已配置音乐，不播放MusicManager的音乐");
+            }
+        }
+        
+        if (shouldPlayOwnMusic && backgroundMusic != null)
         {
             audioSource.clip = backgroundMusic;
             audioSource.Play();
-        }
-        else
-        {
-            Debug.LogWarning("MusicManager: 未设置背景音乐！");
+            Debug.Log("[MusicManager] 播放音乐: " + backgroundMusic.name);
         }
     }
 

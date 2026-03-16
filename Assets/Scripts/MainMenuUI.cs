@@ -67,12 +67,12 @@ public class MainMenuUI : MonoBehaviour
         
         if (hellModeButton != null)
         {
-            hellModeButton.interactable = false;
+            hellModeButton.onClick.AddListener(OnHellModeClicked);
         }
         
         if (nightModeButton != null)
         {
-            nightModeButton.interactable = false;
+            nightModeButton.onClick.AddListener(OnNightModeClicked);
         }
         
         if (stormModeButton != null)
@@ -82,7 +82,7 @@ public class MainMenuUI : MonoBehaviour
         
         if (timeLimitModeButton != null)
         {
-            timeLimitModeButton.interactable = false;
+            timeLimitModeButton.onClick.AddListener(OnTimeLimitModeClicked);
         }
     }
     
@@ -155,6 +155,26 @@ public class MainMenuUI : MonoBehaviour
     
     void OnEndlessModeClicked()
     {
+        StartGameWithMode(GameMode.Endless);
+    }
+    
+    void OnHellModeClicked()
+    {
+        StartGameWithMode(GameMode.Hell);
+    }
+    
+    void OnNightModeClicked()
+    {
+        StartGameWithMode(GameMode.Night);
+    }
+    
+    void OnTimeLimitModeClicked()
+    {
+        StartGameWithMode(GameMode.TimeLimit);
+    }
+    
+    void StartGameWithMode(GameMode mode)
+    {
         CharacterData selectedCharacter = CharacterManager.Instance.GetSelectedCharacter();
         if (selectedCharacter == null)
         {
@@ -162,7 +182,9 @@ public class MainMenuUI : MonoBehaviour
             return;
         }
         
-        Debug.Log($"[主菜单] 开始无尽模式，选中角色: {selectedCharacter.characterName}");
+        GameModeManager.Instance.SelectMode(mode);
+        
+        Debug.Log($"[主菜单] 开始{mode}模式，选中角色: {selectedCharacter.characterName}");
         
         SceneManager.LoadScene(gameSceneName);
     }

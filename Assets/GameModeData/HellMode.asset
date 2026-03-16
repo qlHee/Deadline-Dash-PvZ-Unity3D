@@ -1,0 +1,66 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9bd507d7bb5aa48b29a39c6cab80db05, type: 3}
+  m_Name: HellMode
+  m_EditorClassIdentifier: 
+  modeName: "\u5730\u72F1\u6A21\u5F0F"
+  modeType: 1
+  initialHealthMultiplier: 2
+  regenRateMultiplier: 2
+  useDynamicDifficulty: 1
+  difficultyStages:
+  - distanceStart: 0
+    distanceEnd: 200
+    difficultyStart: 1
+    difficultyEnd: 1.6
+  - distanceStart: 200
+    distanceEnd: 400
+    difficultyStart: 1.6
+    difficultyEnd: 2.4
+  - distanceStart: 400
+    distanceEnd: 800
+    difficultyStart: 2.4
+    difficultyEnd: 2.8
+  - distanceStart: 800
+    distanceEnd: 1600
+    difficultyStart: 2.8
+    difficultyEnd: 3.3
+  - distanceStart: 1600
+    distanceEnd: 3200
+    difficultyStart: 3.3
+    difficultyEnd: 3.8
+  - distanceStart: 3200
+    distanceEnd: 6400
+    difficultyStart: 3.8
+    difficultyEnd: 4.5
+  - distanceStart: 6400
+    distanceEnd: 12800
+    difficultyStart: 4.5
+    difficultyEnd: 5
+  - distanceStart: 12800
+    distanceEnd: 999999
+    difficultyStart: 5
+    difficultyEnd: 5
+  minCountMultiplierStart: 1
+  minCountMultiplierEnd: 1.4
+  maxCountMultiplierStart: 1
+  maxCountMultiplierEnd: 1.41
+  spacingMultiplierStart: 1.2
+  spacingMultiplierEnd: 0.1
+  ambientLightMultiplier: 0.45
+  addSpecialLight: 1
+  specialLightColor: {r: 0.89411765, g: 0.07058824, b: 0.2, a: 1}
+  specialLightIntensity: 1.5
+  backgroundMusic: {fileID: 8300000, guid: 4542345c93af64deca7b7bb98a00fe7d, type: 3}
+  isTimeLimited: 0
+  timeLimit: 180
+  scoreMultiplier: 1
