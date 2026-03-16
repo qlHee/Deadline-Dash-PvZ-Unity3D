@@ -51,6 +51,16 @@ public class PlayerController : MonoBehaviour
     private float burningDamagePerSecond = 5f;
     private float lastBurningDamageTime = 0f;
 
+    [Header("动画")]
+    [SerializeField] private Animator animator;
+    [SerializeField] private float walkSpeedThreshold = 7f;
+    [SerializeField] private float locomotionDampTime = 0.1f;
+
+    private static readonly int AnimMoveSpeedHash = Animator.StringToHash("MoveSpeed");
+    private static readonly int AnimGroundedHash = Animator.StringToHash("IsGrounded");
+    private static readonly int AnimJumpTriggerHash = Animator.StringToHash("Jump");
+    private const float WalkBlendValue = 0.2f;
+
     private Rigidbody rb;
     private Collider bodyCollider;
     private float verticalVelocity = 0f;
@@ -78,6 +88,11 @@ public class PlayerController : MonoBehaviour
         if (bodyCollider == null)
         {
             bodyCollider = GetComponentInChildren<Collider>();
+        }
+
+        if (animator == null)
+        {
+            animator = GetComponentInChildren<Animator>();
         }
 
         targetLaneX = transform.position.x;
@@ -178,6 +193,7 @@ public class PlayerController : MonoBehaviour
                 verticalVelocity = jumpForce;
                 groundedNow = false;
                 jumpRequestTime = Mathf.NegativeInfinity;
+                TriggerJumpAnimation();
             }
         }
         else
@@ -193,6 +209,7 @@ public class PlayerController : MonoBehaviour
 
         rb.velocity = desiredVelocity;
         isGrounded = groundedNow;
+        UpdateAnimator(currentSpeed);
     }
 
     void ClampHorizontalPosition()
@@ -422,5 +439,31 @@ public class PlayerController : MonoBehaviour
             lastBurningDamageTime = Time.time;
             TakeDamage(burningDamagePerSecond);
         }
+    }
+
+    void UpdateAnimator(float currentForwardSpeed)
+    {
+        if (animator == null) return;
+
+        float speedMagnitude = Mathf.Max(0f, currentForwardSpeed);
+        if (speedMagnitude < 0.01f)
+        {
+            animator.SetFloat(AnimMoveSpeedHash, 0f, locomotionDampTime, Time.fixedDeltaTime);
+        }
+        else
+        {
+            float upperBound = Mathf.Max(forwardSpeed, walkSpeedThreshold + 0.01f);
+            float normalizedSpeed = Mathf.InverseLerp(walkSpeedThreshold, upperBound, speedMagnitude);
+            float blendedSpeed = Mathf.Lerp(WalkBlendValue, 1f, normalizedSpeed);
+            animator.SetFloat(AnimMoveSpeedHash, blendedSpeed, locomotionDampTime, Time.fixedDeltaTime);
+        }
+        animator.SetBool(AnimGroundedHash, isGrounded);
+    }
+
+    void TriggerJumpAnimation()
+    {
+        if (animator == null) return;
+        animator.ResetTrigger(AnimJumpTriggerHash);
+        animator.SetTrigger(AnimJumpTriggerHash);
     }
 }
