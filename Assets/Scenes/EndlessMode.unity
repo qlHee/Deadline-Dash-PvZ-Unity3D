@@ -1778,7 +1778,7 @@ MonoBehaviour:
   fireStumpBurningDamage: 5
   fireStumpModel: {fileID: 5837284085041317778, guid: 28eb9ae556eb0e34bb5300f8471d34ef, type: 3}
   nutDamage: 37
-  nutScale: 1.2
+  nutScale: 1
   nutModel: {fileID: 8422072287839438927, guid: ce26dcddd2ee16c4396d0c8d332f875f, type: 3}
   tallNutDamage: 37
   tallNutScale: 1.2
@@ -1831,7 +1831,7 @@ MonoBehaviour:
   cherryBombDamage: 47
   cherryBombScale: 1.2
   cherryBombTriggerRadius: 16
-  cherryBombExplosionRadius: 8
+  cherryBombExplosionRadius: 5
   cherryBombExplosionDelay: 0.5
   cherryBombModel: {fileID: 2542587934493471455, guid: bc627eb7f9d01f140b28a6df98b154ac, type: 3}
   explosionEffectPrefab: {fileID: 100012, guid: 8f71c7ca2b2fa6140a390f9ac4b73a7b, type: 3}
@@ -1915,7 +1915,7 @@ MonoBehaviour:
   horizontalSpeed: 8
   leftBoundary: -5
   rightBoundary: 5
-  jumpForce: 8
+  jumpForce: 9
   gravity: 20
   groundedGravity: 0.5
   jumpBufferTime: 0.1
@@ -1925,7 +1925,7 @@ MonoBehaviour:
   groundLayerMask:
     serializedVersion: 2
     m_Bits: 4294967295
-  maxHealth: 200
+  maxHealth: 20000
   regenDelay: 3
   regenRate: 15
   burningEffectPrefab: {fileID: 1562819949922040, guid: 2ad6a521d3692b547a306991823ad3d7, type: 3}

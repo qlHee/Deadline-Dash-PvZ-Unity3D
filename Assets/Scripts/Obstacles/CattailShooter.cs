@@ -20,7 +20,7 @@ public class CattailShooter : MonoBehaviour
     public float damage = 47f;
 
     [Header("射击设置")]
-    public float fireInterval = 3f;
+    public float fireInterval = 1f;
     public float projectileSpeed = 18f;
     public float projectileDamage = 27f;
     public float projectileLifetime = 5f;

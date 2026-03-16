@@ -317,25 +317,38 @@ public class ObstacleSpawner : MonoBehaviour
 
         lastPlayerScore = playerScore;
 
-        // 计算目标难度系数
-        // 修改：超过400分后降低难度系数，但800分后略微提高
-        if (playerScore <= 400f) {
-            // 0-400分，难度正常增长
-            targetDifficultyFactor = Mathf.Min(playerScore / baseScoreThreshold, maxDifficultyFactor);
+        // 计算目标难度系数 - 用户指定的8阶段系统（v7）
+        if (playerScore <= 200f) {
+            // 阶段1: 0-200米，难度 1.0 -> 2.5
+            float progress = Mathf.Clamp01(playerScore / 200f);
+            targetDifficultyFactor = Mathf.Lerp(1.0f, 2.5f, progress);
+        } else if (playerScore <= 400f) {
+            // 阶段2: 200-400米，难度 2.5 -> 3.0
+            float progress = Mathf.Clamp01((playerScore - 200f) / 200f);
+            targetDifficultyFactor = Mathf.Lerp(2.5f, 3.0f, progress);
         } else if (playerScore <= 800f) {
-            // 400-800分，大幅降低难度，难度值降至400分时的75%
-            float baseValue = 400f / baseScoreThreshold;
-            float reduction = (playerScore - 400f) / 400f * 0.25f; // 每400分降低25%的难度
-            targetDifficultyFactor = baseValue * (1f - reduction);
-            targetDifficultyFactor = Mathf.Min(targetDifficultyFactor, maxDifficultyFactor);
+            // 阶段3: 400-800米，难度 3.0 -> 3.5
+            float progress = Mathf.Clamp01((playerScore - 400f) / 400f);
+            targetDifficultyFactor = Mathf.Lerp(3.0f, 3.5f, progress);
+        } else if (playerScore <= 1600f) {
+            // 阶段4: 800-1600米，难度 3.0 -> 3.6
+            float progress = Mathf.Clamp01((playerScore - 800f) / 800f);
+            targetDifficultyFactor = Mathf.Lerp(3.0f, 3.6f, progress);
+        } else if (playerScore <= 3200f) {
+            // 阶段5: 1600-3200米，难度 3.6 -> 3.9
+            float progress = Mathf.Clamp01((playerScore - 1600f) / 1600f);
+            targetDifficultyFactor = Mathf.Lerp(3.6f, 3.9f, progress);
+        } else if (playerScore <= 6400f) {
+            // 阶段6: 3200-6400米，难度 3.9 -> 4.2
+            float progress = Mathf.Clamp01((playerScore - 3200f) / 3200f);
+            targetDifficultyFactor = Mathf.Lerp(3.9f, 4.2f, progress);
+        } else if (playerScore <= 12800f) {
+            // 阶段7: 6400-12800米，难度 4.2 -> 4.5
+            float progress = Mathf.Clamp01((playerScore - 6400f) / 6400f);
+            targetDifficultyFactor = Mathf.Lerp(4.2f, 4.5f, progress);
         } else {
-            // 800分以上，难度略微提高，但不超过400分时的难度
-            float baseValue = 400f / baseScoreThreshold;
-            float minDifficulty = baseValue * 0.75f; // 800分时的最低难度（400分的75%）
-            float increase = (playerScore - 800f) / 400f * 0.10f; // 每400分提高10%的难度
-            increase = Mathf.Min(increase, 0.15f); // 最多提高15%，仍低于400分时的难度
-            targetDifficultyFactor = minDifficulty * (1f + increase);
-            targetDifficultyFactor = Mathf.Min(targetDifficultyFactor, baseValue * 0.9f); // 不超过400分时难度的90%
+            // 阶段8: 12800米以上，常量 9.0
+            targetDifficultyFactor = 9.0f;
         }
         
         // 平滑过渡当前难度系数
@@ -343,117 +356,50 @@ public class ObstacleSpawner : MonoBehaviour
 
         // 调整障碍物生成参数
         float difficulty = currentDifficultyFactor;
-        
-        // 1. 调整每行障碍物数量 - 初期数量更少，增长更缓慢
-        // 使用playerScore直接控制障碍物数量，而不是难度系数
-        float obstacleCountFactor = Mathf.Clamp01(playerScore / 400f); // 0-400米间线性增长
-        
-        // 起始值降低到初始值的1/2，最高值保持不变
-        minObstaclesPerRow = Mathf.Max(1, Mathf.FloorToInt(Mathf.Lerp(
-            initialMinObstaclesPerRow / 2f, 
-            initialMinObstaclesPerRow, 
-            obstacleCountFactor)));
-            
-        maxObstaclesPerRow = Mathf.Max(minObstaclesPerRow, Mathf.FloorToInt(Mathf.Lerp(
-            initialMaxObstaclesPerRow / 2f, 
-            initialMaxObstaclesPerRow, 
-            obstacleCountFactor)));
+        // 统一用难度系数驱动所有参数（不再按阶段硬编码）
+        // 新曲线的最大难度为9.0，这里将归一化区间设置为[1.0, 9.0]
+        float t = Mathf.InverseLerp(1.0f, 9.0f, Mathf.Clamp(difficulty, 1.0f, 9.0f));
 
-        // 修改：得分超过400后障碍物数量变化
-        if (playerScore > 400f && playerScore <= 800f) {
-            // 400-800分，减少障碍物数量
-            float advancedFactor = Mathf.Clamp01((playerScore - 400f) / 400f); // 400-800米间降低上限
-            // 将最大障碍物数量降低到原先的80%
-            maxObstaclesPerRow = Mathf.FloorToInt(Mathf.Lerp(
-                maxObstaclesPerRow,
-                Mathf.Max(initialMaxObstaclesPerRow * 0.8f, minObstaclesPerRow),
-                advancedFactor));
-        } else if (playerScore > 800f) {
-            // 800分以上，略微增加障碍物数量，但不超过原始值
-            float advancedFactor = Mathf.Clamp01((playerScore - 800f) / 400f); // 800-1200米间微增上限
-            // 将最大障碍物数量从80%略微提高到90%
-            float reducedMax = initialMaxObstaclesPerRow * 0.8f;
-            maxObstaclesPerRow = Mathf.FloorToInt(Mathf.Lerp(
-                reducedMax,
-                Mathf.Min(initialMaxObstaclesPerRow * 0.9f, initialMaxObstaclesPerRow),
-                advancedFactor));
-        }
-
+        // 1. 按难度系数调整每行障碍物数量（难度越高数量越多）
+        // 早期(<~4.0)基本不放大，>=4后再加速放大，避免前期行内数量暴增
+        float countRamp = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(4.0f, 9.0f, difficulty));
+        float maxCountScale = Mathf.Lerp(1.0f, 1.25f, countRamp);
+        float minCountScale = Mathf.Lerp(1.0f, 1.17f, countRamp);
+        int newMinCount = Mathf.Max(1, Mathf.FloorToInt(initialMinObstaclesPerRow * minCountScale));
+        int newMaxCount = Mathf.Max(newMinCount, Mathf.FloorToInt(initialMaxObstaclesPerRow * maxCountScale));
+        minObstaclesPerRow = newMinCount;
+        maxObstaclesPerRow = newMaxCount;
+        
         // 确保最小值不超过最大值
         minObstaclesPerRow = Mathf.Min(minObstaclesPerRow, maxObstaclesPerRow);
 
-        // 2. 调整障碍物间距 - 初期间距更大，减小更缓慢
-        float distanceFactor = Mathf.Clamp01(playerScore / 500f); // 0-500米间线性变化
-        
-        // 初始间距设置为原始值的1.5倍，然后随着得分提高而减少
-        minObstacleDistance = Mathf.Lerp(
-            initialMinObstacleDistance * 1.5f, 
-            initialMinObstacleDistance, 
-            distanceFactor);
-            
-        maxObstacleDistance = Mathf.Lerp(
-            initialMaxObstacleDistance * 1.5f, 
-            initialMaxObstacleDistance, 
-            distanceFactor);
-            
-        // 修改：得分超过500后障碍物间距变化
-        if (playerScore > 500f && playerScore <= 800f) {
-            // 500-800分，增加间距降低难度
-            float advancedDistanceFactor = Mathf.Clamp01((playerScore - 500f) / 300f);
-            minObstacleDistance = Mathf.Lerp(
-                minObstacleDistance,
-                initialMinObstacleDistance * 1.3f, // 增加到130%，让障碍物更分散
-                advancedDistanceFactor);
-                
-            maxObstacleDistance = Mathf.Lerp(
-                maxObstacleDistance,
-                initialMaxObstacleDistance * 1.5f, // 增加到150%，障碍物之间的间距更大
-                advancedDistanceFactor);
-        } else if (playerScore > 800f) {
-            // 800分以上，稍微减小间距，但仍比500分前大
-            float advancedDistanceFactor = Mathf.Clamp01((playerScore - 800f) / 400f);
-            minObstacleDistance = Mathf.Lerp(
-                initialMinObstacleDistance * 1.3f, // 800分时的间距
-                initialMinObstacleDistance * 1.2f, // 略微减小到120%
-                advancedDistanceFactor);
-                
-            maxObstacleDistance = Mathf.Lerp(
-                initialMaxObstacleDistance * 1.5f, // 800分时的间距
-                initialMaxObstacleDistance * 1.3f, // 略微减小到130%
-                advancedDistanceFactor);
-        }
+        // 2. 按难度系数调整障碍物间距（难度越高间距越小）
+        // 早期更稀疏：从1.30逐步收敛到1.00，保证前期不会过密
+        float distanceRamp = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(2.5f, 9.0f, difficulty));
+        float distanceScale = Mathf.Lerp(1.30f, 1.00f, distanceRamp);
+        minObstacleDistance = initialMinObstacleDistance * distanceScale;
+        maxObstacleDistance = initialMaxObstacleDistance * distanceScale;
 
-        // 3. 调整难度等级权重
-        // 难度等级 1 始终保持较高权重
-        difficultyLevelWeights[1] = Mathf.Lerp(1.0f, 0.8f, Mathf.Clamp01(difficulty * 0.2f));
-        
-        // 难度等级 2 - 得分超过200米才出现
-        if (playerScore >= 200f)
+        // 3. 按难度系数调整难度等级权重（仅保留出现门槛，权重随难度变化）
+        // 基于难度的插值参数
+        float wt = t;
+        // 等级1：难度越高，占比越低
+        difficultyLevelWeights[1] = Mathf.Lerp(1.10f, 0.50f, wt);
+        // 等级2：200米后出现，随难度上升
+        difficultyLevelWeights[2] = (playerScore >= 200f) ? Mathf.Lerp(0.40f, 1.00f, wt) : 0f;
+        // 等级3：推迟到800米后逐步开放，前期强限制
+        if (playerScore < 800f)
         {
-            float level2Factor = Mathf.Clamp01((playerScore - 200f) / 200f); // 200-400米间权重从0到100%
-            difficultyLevelWeights[2] = Mathf.Lerp(0.2f, 0.7f, level2Factor);
+            difficultyLevelWeights[3] = 0f;
+        }
+        else if (playerScore < 1600f)
+        {
+            float pf = Mathf.Clamp01((playerScore - 800f) / 800f); // 800-1600m 线性增长
+            difficultyLevelWeights[3] = Mathf.Lerp(0.05f, 0.20f, pf) * Mathf.Lerp(0.8f, 1.0f, wt);
         }
         else
         {
-            difficultyLevelWeights[2] = 0f; // 不达到200米不出现
-        }
-        
-        // 修改：难度等级 3 - 得分超过400米才出现，权重随分数变化
-        if (playerScore >= 400f && playerScore <= 800f)
-        {
-            // 400-800分，低权重
-            float level3Factor = Mathf.Clamp01((playerScore - 400f) / 400f);
-            difficultyLevelWeights[3] = Mathf.Lerp(0.05f, 0.25f, level3Factor); // 最大只到25%
-        }
-        else if (playerScore > 800f)
-        {
-            // 800分以上，略微提高权重，但不超过原先的50%
-            float level3Factor = Mathf.Clamp01((playerScore - 800f) / 600f);
-            difficultyLevelWeights[3] = Mathf.Lerp(0.25f, 0.4f, level3Factor); // 从25%到40%
-        }
-        else
-        {
-            difficultyLevelWeights[3] = 0f; // 不达到400米不出现
+            difficultyLevelWeights[3] = Mathf.Lerp(0.20f, 1.20f, wt);
         }
 
         if (difficulty > 0.5f && difficulty % 0.5f < 0.05f)
@@ -496,9 +442,12 @@ public class ObstacleSpawner : MonoBehaviour
             // 判断该类型是否不能出现在边缘
             bool excludeEdge = (type == ObstacleType.IceMushroom || type == ObstacleType.Cactus);
             
+            // 判断该类型是否只能出现在边缘两格（樱桃炸弹）
+            bool restrictToEdgeTwoGrids = (type == ObstacleType.CherryBomb);
+            
             // 根据类型选择合适的网格位置
             bool forceEdge = !excludeEdge && ShouldForceEdgePlacement();
-            GridPosition gridPos = GetRandomAvailableGrid(usedGrids, forceEdge, excludeEdge);
+            GridPosition gridPos = GetRandomAvailableGrid(usedGrids, forceEdge, excludeEdge, restrictToEdgeTwoGrids);
             if (gridPos.gridX == -1) 
             {
                 // 没有可用格子，中止当前行的障碍物生成
@@ -565,7 +514,7 @@ public class ObstacleSpawner : MonoBehaviour
         return edgeCount < minEdgeInTen;
     }
 
-    GridPosition GetRandomAvailableGrid(HashSet<int> usedGrids, bool forceEdge = false, bool excludeEdge = false)
+    GridPosition GetRandomAvailableGrid(HashSet<int> usedGrids, bool forceEdge = false, bool excludeEdge = false, bool restrictToEdgeTwoGrids = false)
     {
         List<int> availableGrids = new List<int>();
         List<int> edgeGrids = new List<int>();
@@ -654,6 +603,16 @@ public class ObstacleSpawner : MonoBehaviour
                 if (excludeEdge && isEdge)
                 {
                     continue;
+                }
+                
+                // 如果需要限制在边缘两格（樱桃炸弹），只允许最左两格和最右两格
+                if (restrictToEdgeTwoGrids)
+                {
+                    bool isInEdgeTwoGrids = (x <= 1 || x >= gridCountX - 2);
+                    if (!isInEdgeTwoGrids)
+                    {
+                        continue;
+                    }
                 }
                 
                 availableGrids.Add(x);
@@ -1986,6 +1945,7 @@ public class ObstacleSpawner : MonoBehaviour
             case ObstacleType.Peashooter:
             case ObstacleType.IceShooter:
             case ObstacleType.Nut:
+            case ObstacleType.PotatoMine:
                 return 1;
                 
             // 难度等级2（中等）
@@ -1994,14 +1954,13 @@ public class ObstacleSpawner : MonoBehaviour
             case ObstacleType.FireStump:
             case ObstacleType.IceMushroom:
             case ObstacleType.Cactus:
+            case ObstacleType.FirePepper:
                 return 2;
                 
             // 难度等级3（困难）
             case ObstacleType.TripleShooter:
             case ObstacleType.CattailShooter:
             case ObstacleType.CherryBomb:
-            case ObstacleType.FirePepper:
-            case ObstacleType.PotatoMine:
                 return 3;
                 
             default:

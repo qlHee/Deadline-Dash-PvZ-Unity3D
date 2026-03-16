@@ -3,7 +3,7 @@ using UnityEngine;
 public class TripleShooter : MonoBehaviour
 {
     [Header("射击设置")]
-    public float fireInterval = 3f;
+    public float fireInterval = 2f;
     public float projectileSpeed = 18f;
     public float projectileDamage = 27f;
     public float projectileLifetime = 5f;
