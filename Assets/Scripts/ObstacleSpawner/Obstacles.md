@@ -37,6 +37,25 @@
   - 2秒内游戏屏幕变蓝，表示冻结状态
 - **可配置属性**: Model、Scale、Damage、Freeze Duration
 
+### PotatoMine（土豆地雷）
+- **难度等级**: 1
+- **爆炸伤害**: 37
+- **特殊效果**:
+  - 埋在地下，玩家靠近时从地下弹出
+  - Player踩到土豆地雷时立即爆炸，造成37点伤害
+- **可配置属性**: Model、Scale、Explosion Damage
+
+### JalapenoPepper（火爆辣椒）
+- **难度等级**: 2
+- **爆炸伤害**: 47
+- **燃烧持续时间**: 2秒
+- **燃烧每秒伤害**: 10
+- **特殊效果**:
+  - Player碰到火爆辣椒时触发爆炸，造成47点伤害
+  - 爆炸后在原地留下一条火焰带，持续2秒
+  - 玩家接触火焰带会受到燃烧伤害，每秒10点
+- **可配置属性**: Model、Scale、Explosion Damage、Burning Time、Burning Damage
+
 ### CherryBomb（樱桃炸弹）
 - **难度等级**: 3
 - **爆炸伤害**: 47

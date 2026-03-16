@@ -242,6 +242,8 @@ public class FirePepper : MonoBehaviour
         if (pc != null && !pc.IsGameOver())
         {
             pc.ApplyObstacleDamage(damage);
+            // 火爆辣椒属于高温状态，应用燃烧效果
+            pc.ApplyBurningEffect(burnDuration, burnDamagePerSecond);
         }
     }
 

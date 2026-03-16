@@ -1830,8 +1830,8 @@ MonoBehaviour:
   firePepperAutoScaleEffect: 1
   cherryBombDamage: 47
   cherryBombScale: 1.2
-  cherryBombTriggerRadius: 20
-  cherryBombExplosionRadius: 10
+  cherryBombTriggerRadius: 16
+  cherryBombExplosionRadius: 8
   cherryBombExplosionDelay: 0.5
   cherryBombModel: {fileID: 2542587934493471455, guid: bc627eb7f9d01f140b28a6df98b154ac, type: 3}
   explosionEffectPrefab: {fileID: 100012, guid: 8f71c7ca2b2fa6140a390f9ac4b73a7b, type: 3}

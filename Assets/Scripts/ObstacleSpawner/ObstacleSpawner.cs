@@ -490,8 +490,15 @@ public class ObstacleSpawner : MonoBehaviour
 
         for (int i = 0; i < obstacleCount && attemptsCount < maxAttempts; attemptsCount++)
         {
-            bool forceEdge = ShouldForceEdgePlacement();
-            GridPosition gridPos = GetRandomAvailableGrid(usedGrids, forceEdge);
+            // 先选择障碍物类型
+            ObstacleType type = GetRandomObstacleTypeWithConstraints();
+            
+            // 判断该类型是否不能出现在边缘
+            bool excludeEdge = (type == ObstacleType.IceMushroom || type == ObstacleType.Cactus);
+            
+            // 根据类型选择合适的网格位置
+            bool forceEdge = !excludeEdge && ShouldForceEdgePlacement();
+            GridPosition gridPos = GetRandomAvailableGrid(usedGrids, forceEdge, excludeEdge);
             if (gridPos.gridX == -1) 
             {
                 // 没有可用格子，中止当前行的障碍物生成
@@ -499,7 +506,6 @@ public class ObstacleSpawner : MonoBehaviour
                 break;
             }
 
-            ObstacleType type = GetRandomObstacleTypeWithConstraints();
             SpawnObstacleAtGrid(type, gridPos);
             
             usedGrids.Add(gridPos.gridX);
@@ -559,7 +565,7 @@ public class ObstacleSpawner : MonoBehaviour
         return edgeCount < minEdgeInTen;
     }
 
-    GridPosition GetRandomAvailableGrid(HashSet<int> usedGrids, bool forceEdge = false)
+    GridPosition GetRandomAvailableGrid(HashSet<int> usedGrids, bool forceEdge = false, bool excludeEdge = false)
     {
         List<int> availableGrids = new List<int>();
         List<int> edgeGrids = new List<int>();
@@ -642,8 +648,16 @@ public class ObstacleSpawner : MonoBehaviour
         {
             if (!occupiedOrAdjacentGrids.Contains(x))
             {
+                bool isEdge = (x == 0 || x == gridCountX - 1);
+                
+                // 如果需要排除边缘且当前是边缘位置，则跳过
+                if (excludeEdge && isEdge)
+                {
+                    continue;
+                }
+                
                 availableGrids.Add(x);
-                if (x == 0 || x == gridCountX - 1)
+                if (isEdge)
                 {
                     edgeGrids.Add(x);
                 }
@@ -722,7 +736,9 @@ public class ObstacleSpawner : MonoBehaviour
 
         TagUtility.TryAssignTag(obstacle, "Obstacle");
 
-        if (type != ObstacleType.FireStump && type != ObstacleType.Nut && type != ObstacleType.TallNut && type != ObstacleType.FirePepper)
+        // 排除有自己碰撞处理的障碍物：FireStump, Nut, TallNut, FirePepper, Cactus, CattailShooter
+        if (type != ObstacleType.FireStump && type != ObstacleType.Nut && type != ObstacleType.TallNut && 
+            type != ObstacleType.FirePepper && type != ObstacleType.Cactus && type != ObstacleType.CattailShooter)
         {
             ObstacleCollision obstacleCollision = obstacle.GetComponent<ObstacleCollision>();
             if (obstacleCollision == null)
@@ -875,6 +891,16 @@ public class ObstacleSpawner : MonoBehaviour
         shooter.AssignMuzzle(muzzle.transform);
         shooter.SetProjectileHeight(peaProjectileHeight);
         shooter.SetProjectileDamage(peaProjectileDamage);
+        
+        // 确保有碰撞体（用于玩家碰撞检测）
+        BoxCollider collider = peashooter.GetComponent<BoxCollider>();
+        if (collider == null)
+        {
+            collider = peashooter.AddComponent<BoxCollider>();
+        }
+        collider.isTrigger = true;
+        collider.size = new Vector3(size, size * 2f, size);
+        collider.center = new Vector3(0f, size, 0f);
 
         return peashooter;
     }
@@ -947,6 +973,16 @@ public class ObstacleSpawner : MonoBehaviour
         shooter.AssignMuzzle(muzzle.transform);
         shooter.SetProjectileHeight(peaProjectileHeight);
         shooter.SetProjectileDamage(peaProjectileDamage);
+        
+        // 确保有碰撞体（用于玩家碰撞检测）
+        BoxCollider collider = iceShooter.GetComponent<BoxCollider>();
+        if (collider == null)
+        {
+            collider = iceShooter.AddComponent<BoxCollider>();
+        }
+        collider.isTrigger = true;
+        collider.size = new Vector3(size, size * 2f, size);
+        collider.center = new Vector3(0f, size, 0f);
 
         return iceShooter;
     }
@@ -1019,6 +1055,16 @@ public class ObstacleSpawner : MonoBehaviour
         shooter.AssignMuzzle(muzzle.transform);
         shooter.SetProjectileHeight(peaProjectileHeight);
         shooter.SetProjectileDamage(peaProjectileDamage);
+        
+        // 确保有碰撞体（用于玩家碰撞检测）
+        BoxCollider collider = doubleShooter.GetComponent<BoxCollider>();
+        if (collider == null)
+        {
+            collider = doubleShooter.AddComponent<BoxCollider>();
+        }
+        collider.isTrigger = true;
+        collider.size = new Vector3(size, size * 2f, size);
+        collider.center = new Vector3(0f, size, 0f);
 
         return doubleShooter;
     }
@@ -1093,6 +1139,16 @@ public class ObstacleSpawner : MonoBehaviour
         shooter.AssignMuzzle(muzzle.transform);
         shooter.SetProjectileHeight(peaProjectileHeight);
         shooter.SetProjectileDamage(peaProjectileDamage);
+        
+        // 确保有碰撞体（用于玩家碰撞检测）
+        BoxCollider collider = tripleShooter.GetComponent<BoxCollider>();
+        if (collider == null)
+        {
+            collider = tripleShooter.AddComponent<BoxCollider>();
+        }
+        collider.isTrigger = true;
+        collider.size = new Vector3(size, size * 2f, size);
+        collider.center = new Vector3(0f, size, 0f);
 
         return tripleShooter;
     }

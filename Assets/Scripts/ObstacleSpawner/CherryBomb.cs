@@ -140,6 +140,8 @@ public class CherryBomb : MonoBehaviour
             if (distance <= explosionRadius)
             {
                 player.TakeDamage(explosionDamage);
+                // 樱桃炸弹爆炸属于高温状态，应用燃烧效果
+                player.ApplyBurningEffect(3f, 5f);
             }
         }
         

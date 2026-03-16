@@ -476,6 +476,9 @@ public class PlayerController : MonoBehaviour
         // 如果玩家已被冻结，则不应用减速效果
         if (isFrozen) return;
         
+        // 低温状态：清除所有高温状态
+        ClearHotState();
+        
         isSlowed = true;
         slowEndTime = Time.time + duration;
         speedMultiplier = Mathf.Clamp01(slowMultiplier);
@@ -486,7 +489,7 @@ public class PlayerController : MonoBehaviour
             ApplyFrozenTint();
             slowTintActive = true;
         }
-        Debug.Log($"[减速效果] 速度倍率: {speedMultiplier:F2}x, 持续时间: {duration}秒");
+        Debug.Log($"[减速效果] 速度倍率: {speedMultiplier:F2}x, 持续时间: {duration}秒 (已清除高温状态)");
     }
 
     void UpdateSlowEffect()
@@ -508,6 +511,9 @@ public class PlayerController : MonoBehaviour
     
     public void ApplyFrozenEffect(float duration)
     {
+        // 低温状态：清除所有高温状态
+        ClearHotState();
+        
         // 完全冻结玩家
         isFrozen = true;
         frozenEndTime = Time.time + duration;
@@ -541,7 +547,7 @@ public class PlayerController : MonoBehaviour
             rb.angularVelocity = Vector3.zero;
         }
         
-        Debug.Log($"[冻结效果] 玩家被完全冻结，持续时间: {duration}秒");
+        Debug.Log($"[冻结效果] 玩家被完全冻结，持续时间: {duration}秒 (已清除高温状态)");
     }
     
     void UpdateFrozenEffect()
@@ -655,6 +661,9 @@ public class PlayerController : MonoBehaviour
 
     public void ApplyBurningEffect(float duration, float damagePerSecond)
     {
+        // 高温状态：清除所有低温状态
+        ClearColdState();
+        
         isBurning = true;
         burningEndTime = Time.time + duration;
         burningDamagePerSecond = damagePerSecond;
@@ -669,7 +678,7 @@ public class PlayerController : MonoBehaviour
         }
         ApplyBurningTint();
         burningTintActive = true;
-        Debug.Log($"[燃烧效果] 持续时间: {duration}秒, 每秒伤害: {damagePerSecond}");
+        Debug.Log($"[燃烧效果] 持续时间: {duration}秒, 每秒伤害: {damagePerSecond} (已清除低温状态)");
     }
 
     void UpdateBurningEffect()
@@ -735,6 +744,71 @@ public class PlayerController : MonoBehaviour
                 RestoreFrozenTint();
             }
             burningTintActive = false;
+        }
+    }
+    
+    /// <summary>
+    /// 清除所有高温状态（燃烧效果）
+    /// </summary>
+    void ClearHotState()
+    {
+        if (isBurning)
+        {
+            isBurning = false;
+            ClearBurningEffect();
+            Debug.Log("[状态互斥] 清除高温状态：燃烧效果已解除");
+        }
+    }
+    
+    /// <summary>
+    /// 清除所有低温状态（冻结和减速效果）
+    /// </summary>
+    void ClearColdState()
+    {
+        bool hadColdState = false;
+        
+        // 清除冻结效果
+        if (isFrozen)
+        {
+            isFrozen = false;
+            
+            if (rb != null && constraintsStored)
+            {
+                rb.constraints = originalConstraints;
+            }
+            
+            if (animator != null && animatorSpeedStored)
+            {
+                animator.speed = originalAnimatorSpeed;
+            }
+            
+            if (frozenTintActive)
+            {
+                RestoreFrozenTint();
+                frozenTintActive = false;
+            }
+            
+            hadColdState = true;
+        }
+        
+        // 清除减速效果
+        if (isSlowed)
+        {
+            isSlowed = false;
+            speedMultiplier = 1f;
+            
+            if (slowTintActive)
+            {
+                RestoreFrozenTint();
+                slowTintActive = false;
+            }
+            
+            hadColdState = true;
+        }
+        
+        if (hadColdState)
+        {
+            Debug.Log("[状态互斥] 清除低温状态：冻结和减速效果已解除");
         }
     }
 

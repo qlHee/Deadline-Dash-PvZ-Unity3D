@@ -1,3 +1,4 @@
+using System.Collections;
 using UnityEngine;
 
 public class CattailShooter : MonoBehaviour
@@ -31,11 +32,14 @@ public class CattailShooter : MonoBehaviour
     private PlayerController player;
     private float nextFireTime;
     private float projectileHeight = 1.2f;
+    private bool hasHit = false;
+    private Renderer[] renderers;
 
     void Start()
     {
         player = FindObjectOfType<PlayerController>();
         nextFireTime = Time.time + Random.Range(0f, Mathf.Max(0.1f, fireInterval));
+        renderers = GetComponentsInChildren<Renderer>(true);
         UpdateScale();
     }
 
@@ -105,15 +109,18 @@ public class CattailShooter : MonoBehaviour
         rb.useGravity = false;
         rb.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
 
+        // 使用SphereCollider更可靠，性能也更好
         Collider collider = projectileObject.GetComponent<Collider>();
         if (collider == null)
         {
-            collider = projectileObject.AddComponent<MeshCollider>();
-            ((MeshCollider)collider).convex = true;
+            SphereCollider sphereCollider = projectileObject.AddComponent<SphereCollider>();
+            sphereCollider.radius = 0.3f;
+            collider = sphereCollider;
         }
         collider.isTrigger = true;
 
-        TagUtility.TryAssignTag(projectileObject, "Obstacle");
+        // 尖刺不设置特殊标签，由SpikeProjectile组件自己处理碰撞
+        // 不设置为Obstacle标签，避免与玩家的障碍物碰撞逻辑冲突
 
         Renderer renderer = projectileObject.GetComponentInChildren<Renderer>();
         if (renderer != null)
@@ -149,10 +156,59 @@ public class CattailShooter : MonoBehaviour
     {
         if (other.CompareTag("Player"))
         {
+            if (hasHit) return;
+            
             PlayerController playerController = other.GetComponent<PlayerController>();
             if (playerController != null && !playerController.IsGameOver())
             {
                 playerController.TakeDamage(damage);
+                hasHit = true;
+                
+                // 禁用碰撞体
+                BoxCollider boxCollider = GetComponent<BoxCollider>();
+                if (boxCollider != null)
+                {
+                    boxCollider.enabled = false;
+                }
+                
+                // 闪烁后消失
+                StartCoroutine(FlashAndDisappear());
+            }
+        }
+    }
+    
+    IEnumerator FlashAndDisappear()
+    {
+        const float duration = 0.5f;
+        const float interval = 0.1f;
+        
+        float elapsed = 0f;
+        float nextToggle = interval;
+        bool visible = true;
+        
+        while (elapsed < duration)
+        {
+            elapsed += Time.deltaTime;
+            if (elapsed >= nextToggle)
+            {
+                nextToggle += interval;
+                visible = !visible;
+                SetRenderersEnabled(visible);
+            }
+            yield return null;
+        }
+        
+        Destroy(gameObject);
+    }
+    
+    void SetRenderersEnabled(bool enabled)
+    {
+        if (renderers == null) return;
+        foreach (Renderer renderer in renderers)
+        {
+            if (renderer != null)
+            {
+                renderer.enabled = enabled;
             }
         }
     }
