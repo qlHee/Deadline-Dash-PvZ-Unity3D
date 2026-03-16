@@ -1,0 +1,134 @@
+    GameObject CreateCherryBomb(float size)
+    {
+        GameObject cherryBomb = new GameObject("CherryBomb");
+
+        if (cherryBombModel != null)
+        {
+            GameObject visual = Instantiate(cherryBombModel, cherryBomb.transform);
+            visual.transform.localPosition = Vector3.zero;
+            visual.transform.localScale = Vector3.one * size;
+            RemoveChildColliders(visual);
+            
+            // 修复模型中心偏移问题
+            Renderer visualRenderer = visual.GetComponentInChildren<Renderer>();
+            if (visualRenderer != null)
+            {
+                Bounds localBounds = visualRenderer.bounds;
+                Vector3 centerOffset = cherryBomb.transform.InverseTransformPoint(localBounds.center);
+                visual.transform.localPosition = -centerOffset;
+            }
+        }
+        else
+        {
+            // 创建简单的樱桃炸弹形状（如果没有指定模型）
+            float cherryRadius = size * 0.4f;
+            
+            // 创建底部茎
+            GameObject stem = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+            stem.name = "Stem";
+            stem.transform.SetParent(cherryBomb.transform, false);
+            stem.transform.localScale = new Vector3(size * 0.1f, size * 0.3f, size * 0.1f);
+            stem.transform.localPosition = new Vector3(0f, size * 0.3f, 0f);
+            Renderer stemRenderer = stem.GetComponent<Renderer>();
+            if (stemRenderer != null)
+            {
+                stemRenderer.material.color = new Color(0.2f, 0.6f, 0.2f);
+            }
+            Collider stemCollider = stem.GetComponent<Collider>();
+            if (stemCollider != null)
+            {
+                Destroy(stemCollider);
+            }
+            
+            // 创建左侧樱桃
+            GameObject leftCherry = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+            leftCherry.name = "LeftCherry";
+            leftCherry.transform.SetParent(cherryBomb.transform, false);
+            leftCherry.transform.localScale = Vector3.one * cherryRadius;
+            leftCherry.transform.localPosition = new Vector3(-cherryRadius * 0.7f, size * 0.6f, 0f);
+            Renderer leftRenderer = leftCherry.GetComponent<Renderer>();
+            if (leftRenderer != null)
+            {
+                leftRenderer.material.color = new Color(0.8f, 0.1f, 0.1f);
+            }
+            Collider leftCollider = leftCherry.GetComponent<Collider>();
+            if (leftCollider != null)
+            {
+                Destroy(leftCollider);
+            }
+            
+            // 创建右侧樱桃
+            GameObject rightCherry = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+            rightCherry.name = "RightCherry";
+            rightCherry.transform.SetParent(cherryBomb.transform, false);
+            rightCherry.transform.localScale = Vector3.one * cherryRadius;
+            rightCherry.transform.localPosition = new Vector3(cherryRadius * 0.7f, size * 0.6f, 0f);
+            Renderer rightRenderer = rightCherry.GetComponent<Renderer>();
+            if (rightRenderer != null)
+            {
+                rightRenderer.material.color = new Color(0.8f, 0.1f, 0.1f);
+            }
+            Collider rightCollider = rightCherry.GetComponent<Collider>();
+            if (rightCollider != null)
+            {
+                Destroy(rightCollider);
+            }
+            
+            // 添加两个叶子装饰
+            GameObject leaf1 = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            leaf1.name = "Leaf1";
+            leaf1.transform.SetParent(cherryBomb.transform, false);
+            leaf1.transform.localScale = new Vector3(size * 0.15f, size * 0.05f, size * 0.15f);
+            leaf1.transform.localPosition = new Vector3(size * 0.1f, size * 0.4f, 0f);
+            leaf1.transform.localRotation = Quaternion.Euler(0f, 0f, 30f);
+            Renderer leaf1Renderer = leaf1.GetComponent<Renderer>();
+            if (leaf1Renderer != null)
+            {
+                leaf1Renderer.material.color = new Color(0.1f, 0.7f, 0.1f);
+            }
+            Collider leaf1Collider = leaf1.GetComponent<Collider>();
+            if (leaf1Collider != null)
+            {
+                Destroy(leaf1Collider);
+            }
+            
+            GameObject leaf2 = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            leaf2.name = "Leaf2";
+            leaf2.transform.SetParent(cherryBomb.transform, false);
+            leaf2.transform.localScale = new Vector3(size * 0.15f, size * 0.05f, size * 0.15f);
+            leaf2.transform.localPosition = new Vector3(-size * 0.1f, size * 0.4f, 0f);
+            leaf2.transform.localRotation = Quaternion.Euler(0f, 0f, -30f);
+            Renderer leaf2Renderer = leaf2.GetComponent<Renderer>();
+            if (leaf2Renderer != null)
+            {
+                leaf2Renderer.material.color = new Color(0.1f, 0.7f, 0.1f);
+            }
+            Collider leaf2Collider = leaf2.GetComponent<Collider>();
+            if (leaf2Collider != null)
+            {
+                Destroy(leaf2Collider);
+            }
+        }
+        
+        // 添加碰撞体
+        SphereCollider cherryCollider = cherryBomb.AddComponent<SphereCollider>();
+        cherryCollider.radius = size * 0.5f;
+        cherryCollider.center = new Vector3(0f, size * 0.6f, 0f);
+        cherryCollider.isTrigger = true;
+        
+        // 添加刚体
+        Rigidbody rb = cherryBomb.AddComponent<Rigidbody>();
+        rb.isKinematic = true;
+        rb.useGravity = false;
+        
+        // 添加CherryBomb脚本组件并设置属性
+        CherryBomb cherryBombScript = cherryBomb.AddComponent<CherryBomb>();
+        cherryBombScript.model = cherryBombModel;
+        cherryBombScript.scale = cherryBombScale;
+        cherryBombScript.explosionDamage = cherryBombDamage;
+        cherryBombScript.triggerRadius = cherryBombTriggerRadius;
+        cherryBombScript.explosionRadius = cherryBombExplosionRadius;
+        cherryBombScript.explosionEffectPrefab = explosionEffectPrefab;
+        
+        return cherryBomb;
+    }
