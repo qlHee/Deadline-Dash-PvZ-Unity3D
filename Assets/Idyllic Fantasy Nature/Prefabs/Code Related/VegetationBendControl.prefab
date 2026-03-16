@@ -1,0 +1,69 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!1 &5602993367187296133
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1513004065682816103}
+  - component: {fileID: -8085885610120390686}
+  m_Layer: 0
+  m_Name: VegetationBendControl
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &1513004065682816103
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5602993367187296133}
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_RootOrder: 0
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &-8085885610120390686
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5602993367187296133}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d80f2b6645798d6448f6ef9685e70783, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  _enableBendFeature: 1
+  _player: {fileID: 0}
+  _startBendRange: 0.508
+  _bendStrength: 0.245
+  _material:
+  - {fileID: 2100000, guid: 547d20f3a4675194983b5d880d1fb348, type: 2}
+  - {fileID: 2100000, guid: 16db3acac4b71444b95fd5cca207bf73, type: 2}
+  - {fileID: 2100000, guid: 624774d7ea92d5b4db92a800861eea5c, type: 2}
+  - {fileID: 2100000, guid: a803901a8f304c745aaafbe0260beaed, type: 2}
+  - {fileID: 2100000, guid: cef103c3c4d4f3c48bac1eff7d881a62, type: 2}
+  - {fileID: 2100000, guid: 76ef7e3a05c197a4ca75eadeb25e8c48, type: 2}
+  - {fileID: 2100000, guid: 10483612dc26c1041b3d6687bd972505, type: 2}
+  - {fileID: 2100000, guid: e85669880144e1f4ab0ee9d8a4abce6a, type: 2}
+  - {fileID: 2100000, guid: 72cc46bc7c9dfe4499ba6674a29a0b45, type: 2}
+  - {fileID: 2100000, guid: f5c31f95aa6a9ce4ca82f354413014ce, type: 2}
+  - {fileID: 2100000, guid: 93177626868af8d4d971ee01e99f329f, type: 2}
+  - {fileID: 2100000, guid: 4b043753b6e14de40b5307322dceb86f, type: 2}
+  - {fileID: 2100000, guid: 7da7c3a003bf2d949bac1d4b7b1663f1, type: 2}
+  - {fileID: 2100000, guid: 6baca70dc3434ed41acb5be62febe897, type: 2}
+  - {fileID: 2100000, guid: 05012e0d4e3f70e4a98a64e683a398b0, type: 2}
+  - {fileID: 2100000, guid: e37878cc1ec405d4da01f8fab6fac40f, type: 2}
+  - {fileID: 2100000, guid: af0497010901f254a9fe6230f5a174a4, type: 2}
+  - {fileID: 2100000, guid: 8609a57ab3cc6964da7080bd8f65fa29, type: 2}

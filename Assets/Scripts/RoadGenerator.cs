@@ -1,125 +1,314 @@
+﻿using System.Collections.Generic;
 using UnityEngine;
-using System.Collections.Generic;
 
 public class RoadGenerator : MonoBehaviour
 {
     [Header("跑道设置")]
-    public GameObject roadPrefab;             // 跑道预制体（如果不使用，会自动创建）
-    public float roadLength = 50f;            // 每段跑道的长度
-    public float roadWidth = 10f;             // 跑道宽度
-    public float wallHeight = 3f;             // 墙壁高度
-    public int initialRoadCount = 5;          // 初始生成的跑道段数
-    public float spawnDistance = 100f;        // 在玩家前方多远生成新跑道
+    public GameObject roadPrefab;
+    public float roadLength = 50f;
+    public float roadWidth = 10f;
+    public float wallHeight = 3f;
+    public int initialRoadCount = 5;
+    public float spawnDistance = 100f;
+    public float lookAheadTime = 4f;
+    public float backCullDistance = 60f;
 
     [Header("材质设置")]
     public Material roadMaterial;
     public Material wallMaterial;
+
+    [Header("草地装饰")]
+    public GameObject[] grassPrefabs;
+    public bool spawnGrassOnGeneratedSegments = true;
+    public float grassEdgeOffset = 0.8f;
+    public Vector2 grassSpacingRange = new Vector2(3f, 5f);
+    public Vector2 grassScaleRange = new Vector2(0.8f, 1.3f);
+    public float grassXJitter = 0.3f;
+    public float grassZJitter = 0.5f;
+
     private Transform playerTransform;
-    private List<GameObject> activeRoads = new List<GameObject>();
-    private float lastRoadEndZ = 0f;
+    private readonly List<GameObject> activeRoads = new List<GameObject>();
+    private float lastRoadEndZ;
+    private PlayerController playerController;
+    private readonly Dictionary<GameObject, Stack<GameObject>> grassPool = new Dictionary<GameObject, Stack<GameObject>>();
 
     void Start()
     {
-        playerTransform = GameObject.FindGameObjectWithTag("Player").transform;
+        GameObject player = GameObject.FindGameObjectWithTag("Player");
+        if (player == null)
+        {
+            Debug.LogError("[RoadGenerator] 未找到 Player，无法生成跑道。");
+            enabled = false;
+            return;
+        }
 
-        // 生成初始跑道
+        playerTransform = player.transform;
+        playerController = player.GetComponent<PlayerController>();
+
+        lastRoadEndZ = playerTransform.position.z - roadLength;
+
         for (int i = 0; i < initialRoadCount; i++)
         {
             SpawnRoadSegment();
         }
-		
+
+        EnsureAheadRoads();
     }
 
     void Update()
     {
-        // 检查是否需要生成新的跑道
-        if (lastRoadEndZ - playerTransform.position.z < spawnDistance)
+        if (playerTransform == null) return;
+
+        EnsureAheadRoads();
+
+        RemoveOldRoads();
+    }
+
+    void EnsureAheadRoads()
+    {
+        float requiredAhead = GetRequiredAheadDistance();
+        while (lastRoadEndZ - playerTransform.position.z < requiredAhead)
         {
             SpawnRoadSegment();
         }
-
-        // 移除玩家后方过远的跑道
-        RemoveOldRoads();
     }
 
     void SpawnRoadSegment()
     {
-        GameObject roadSegment = new GameObject("RoadSegment_" + activeRoads.Count);
-        roadSegment.transform.position = new Vector3(0, 0, lastRoadEndZ);
-        roadSegment.transform.parent = transform;
-
-        // 创建地面
-        GameObject ground = GameObject.CreatePrimitive(PrimitiveType.Cube);
-        ground.name = "Ground";
-        ground.transform.parent = roadSegment.transform;
-        ground.transform.localPosition = new Vector3(0, -0.5f, roadLength / 2);
-        ground.transform.localScale = new Vector3(roadWidth, 1f, roadLength);
-        ground.tag = "Ground";
-        
-        if (roadMaterial != null)
+        GameObject roadSegment;
+        bool generatedInCode = roadPrefab == null;
+        if (!generatedInCode)
         {
-            ground.GetComponent<Renderer>().material = roadMaterial;
+            roadSegment = Instantiate(roadPrefab, new Vector3(0f, 0f, lastRoadEndZ), Quaternion.identity, transform);
         }
         else
         {
-            ground.GetComponent<Renderer>().material.color = Color.gray;
+            roadSegment = new GameObject("RoadSegment_" + activeRoads.Count);
+            roadSegment.transform.SetParent(transform);
+            roadSegment.transform.position = new Vector3(0f, 0f, lastRoadEndZ);
+            BuildPrimitiveRoad(roadSegment.transform);
         }
 
-        // 创建左墙
-        GameObject leftWall = GameObject.CreatePrimitive(PrimitiveType.Cube);
-        leftWall.name = "LeftWall";
-        leftWall.transform.parent = roadSegment.transform;
-        leftWall.transform.localPosition = new Vector3(-roadWidth / 2 - 0.5f, wallHeight / 2, roadLength / 2);
-        leftWall.transform.localScale = new Vector3(1f, wallHeight, roadLength);
-        leftWall.tag = "Wall";
-        
-        if (wallMaterial != null)
+        if (generatedInCode && spawnGrassOnGeneratedSegments)
         {
-            leftWall.GetComponent<Renderer>().material = wallMaterial;
-        }
-        else
-        {
-            leftWall.GetComponent<Renderer>().material.color = new Color(0.3f, 0.3f, 0.8f);
-        }
-
-        // 创建右墙
-        GameObject rightWall = GameObject.CreatePrimitive(PrimitiveType.Cube);
-        rightWall.name = "RightWall";
-        rightWall.transform.parent = roadSegment.transform;
-        rightWall.transform.localPosition = new Vector3(roadWidth / 2 + 0.5f, wallHeight / 2, roadLength / 2);
-        rightWall.transform.localScale = new Vector3(1f, wallHeight, roadLength);
-        rightWall.tag = "Wall";
-        
-        if (wallMaterial != null)
-        {
-            rightWall.GetComponent<Renderer>().material = wallMaterial;
-        }
-        else
-        {
-            rightWall.GetComponent<Renderer>().material.color = new Color(0.3f, 0.3f, 0.8f);
+            PopulateGrass(roadSegment.transform);
         }
 
         activeRoads.Add(roadSegment);
         lastRoadEndZ += roadLength;
     }
 
-    void RemoveOldRoads()
+    void BuildPrimitiveRoad(Transform parent)
     {
-        // 移除玩家后方50米以外的跑道
-        for (int i = activeRoads.Count - 1; i >= 0; i--)
+        CreateGround(parent);
+        CreateWall(parent, "LeftWall", -roadWidth / 2f - 0.5f);
+        CreateWall(parent, "RightWall", roadWidth / 2f + 0.5f);
+    }
+
+    void CreateGround(Transform parent)
+    {
+        GameObject ground = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        ground.name = "Ground";
+        ground.transform.SetParent(parent);
+        ground.transform.localPosition = new Vector3(0f, -0.5f, roadLength / 2f);
+        ground.transform.localScale = new Vector3(roadWidth, 1f, roadLength);
+        TagUtility.TryAssignTag(ground, "Ground");
+
+        Renderer renderer = ground.GetComponent<Renderer>();
+        if (roadMaterial != null)
         {
-            if (activeRoads[i].transform.position.z + roadLength < playerTransform.position.z - 50f)
+            renderer.material = roadMaterial;
+        }
+        else
+        {
+            renderer.material.color = Color.gray;
+        }
+    }
+
+    void CreateWall(Transform parent, string name, float offsetX)
+    {
+        GameObject wall = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        wall.name = name;
+        wall.transform.SetParent(parent);
+        wall.transform.localPosition = new Vector3(offsetX, wallHeight / 2f, roadLength / 2f);
+        wall.transform.localScale = new Vector3(1f, wallHeight, roadLength);
+        TagUtility.TryAssignTag(wall, "Wall");
+
+        Renderer renderer = wall.GetComponent<Renderer>();
+        if (wallMaterial != null)
+        {
+            renderer.material = wallMaterial;
+        }
+        else
+        {
+            renderer.material.color = new Color(0.3f, 0.3f, 0.8f);
+        }
+    }
+
+    void PopulateGrass(Transform parent)
+    {
+        if (grassPrefabs == null || grassPrefabs.Length == 0)
+        {
+            return;
+        }
+
+        Transform grassRoot = EnsureGrassRoot(parent);
+
+        for (int side = -1; side <= 1; side += 2)
+        {
+            float currentZ = 0f;
+            while (currentZ < roadLength)
             {
-                GameObject roadToRemove = activeRoads[i];
-                activeRoads.RemoveAt(i);
-                Destroy(roadToRemove);
+                GameObject prefab = GetRandomGrassPrefab();
+                if (prefab == null)
+                {
+                    break;
+                }
+
+                GameObject grass = GetGrassInstance(prefab, grassRoot);
+                float sideSign = side;
+                float xBase = (roadWidth / 2f + grassEdgeOffset) * sideSign;
+                float jitterX = Random.Range(-grassXJitter, grassXJitter);
+                float jitterZ = Random.Range(-grassZJitter, grassZJitter);
+                float yRotation = Random.Range(0f, 360f);
+                float scale = Random.Range(grassScaleRange.x, grassScaleRange.y);
+
+                grass.transform.localPosition = new Vector3(xBase + jitterX, 0f, currentZ + jitterZ);
+                grass.transform.localRotation = Quaternion.Euler(0f, yRotation, 0f);
+                grass.transform.localScale = Vector3.one * scale;
+
+                currentZ += Random.Range(grassSpacingRange.x, grassSpacingRange.y);
             }
         }
+    }
+
+    Transform EnsureGrassRoot(Transform parent)
+    {
+        Transform root = parent.Find("GrassRoot");
+        if (root == null)
+        {
+            var go = new GameObject("GrassRoot");
+            root = go.transform;
+            root.SetParent(parent, false);
+        }
+        return root;
+    }
+
+    GameObject GetRandomGrassPrefab()
+    {
+        if (grassPrefabs == null || grassPrefabs.Length == 0)
+        {
+            return null;
+        }
+        int index = Random.Range(0, grassPrefabs.Length);
+        return grassPrefabs[index];
+    }
+
+    GameObject GetGrassInstance(GameObject prefab, Transform parent)
+    {
+        if (prefab == null)
+        {
+            return null;
+        }
+
+        if (!grassPool.TryGetValue(prefab, out Stack<GameObject> poolStack))
+        {
+            poolStack = new Stack<GameObject>();
+            grassPool[prefab] = poolStack;
+        }
+
+        GameObject instance;
+        if (poolStack.Count > 0)
+        {
+            instance = poolStack.Pop();
+            instance.SetActive(true);
+        }
+        else
+        {
+            instance = Instantiate(prefab);
+            var tag = instance.GetComponent<GrassPoolTag>();
+            if (tag == null)
+            {
+                tag = instance.AddComponent<GrassPoolTag>();
+            }
+            tag.sourcePrefab = prefab;
+        }
+
+        instance.transform.SetParent(parent, false);
+        return instance;
+    }
+
+    void ReturnGrassInstance(Transform instance)
+    {
+        if (instance == null) return;
+        var tag = instance.GetComponent<GrassPoolTag>();
+        if (tag == null || tag.sourcePrefab == null)
+        {
+            Destroy(instance.gameObject);
+            return;
+        }
+
+        if (!grassPool.TryGetValue(tag.sourcePrefab, out Stack<GameObject> poolStack))
+        {
+            poolStack = new Stack<GameObject>();
+            grassPool[tag.sourcePrefab] = poolStack;
+        }
+
+        instance.gameObject.SetActive(false);
+        instance.SetParent(transform, false);
+        poolStack.Push(instance.gameObject);
+    }
+
+    void RemoveOldRoads()
+    {
+        for (int i = activeRoads.Count - 1; i >= 0; i--)
+        {
+            if (activeRoads[i] == null)
+            {
+                activeRoads.RemoveAt(i);
+                continue;
+            }
+
+            if (activeRoads[i].transform.position.z + roadLength < playerTransform.position.z - backCullDistance)
+            {
+                RecycleGrassInstances(activeRoads[i].transform);
+                Destroy(activeRoads[i]);
+                activeRoads.RemoveAt(i);
+            }
+        }
+    }
+
+    void RecycleGrassInstances(Transform segment)
+    {
+        if (segment == null) return;
+        Transform grassRoot = segment.Find("GrassRoot");
+        if (grassRoot == null) return;
+
+        for (int i = grassRoot.childCount - 1; i >= 0; i--)
+        {
+            ReturnGrassInstance(grassRoot.GetChild(i));
+        }
+    }
+
+    float GetRequiredAheadDistance()
+    {
+        float dynamicAhead = 0f;
+        if (playerController != null)
+        {
+            float liveSpeed = Mathf.Abs(playerController.GetForwardSpeed());
+            float expectedSpeed = Mathf.Max(liveSpeed, playerController.maxForwardSpeed);
+            dynamicAhead = expectedSpeed * lookAheadTime;
+        }
+        return Mathf.Max(spawnDistance, dynamicAhead);
     }
 
     public float GetRoadWidth()
     {
         return roadWidth;
     }
-}
 
+    private class GrassPoolTag : MonoBehaviour
+    {
+        public GameObject sourcePrefab;
+    }
+}

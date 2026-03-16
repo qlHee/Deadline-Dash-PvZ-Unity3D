@@ -1,184 +1,453 @@
-using UnityEngine;
 using System.Collections.Generic;
+using UnityEngine;
 
 public class ObstacleSpawner : MonoBehaviour
 {
-    [Header("障碍物设置")]
+    [Header("障碍生成范围")]
     public Material obstacleMaterial;
-    public float spawnDistance = 80f;          // 在玩家前方多远开始生成障碍物
-    public float minSpawnDistance = 70f;       // 最小生成距离
-    public float despawnDistance = 30f;        // 玩家后方多远移除障碍物
-    public float safeZoneDistance = 20f;       // 玩家附近的安全区域（不生成不删除）
+    public float spawnDistance = 80f;
+    public float minSpawnDistance = 70f;
+    public float despawnDistance = 30f;
+    public float safeZoneDistance = 20f;
 
-    [Header("障碍物间距")]
-    public float minObstacleDistance = 8f;     // 障碍物之间的最小距离
-    public float maxObstacleDistance = 15f;    // 障碍物之间的最大距离
+    [Header("障碍间距")]
+    public float minObstacleDistance = 8f;
+    public float maxObstacleDistance = 15f;
 
-    [Header("障碍物尺寸范围")]
-    public float minObstacleSize = 1f;         // 最小障碍物尺寸
-    public float maxObstacleSize = 2.5f;       // 最大障碍物尺寸
+    [Header("障碍尺寸（仅 Primitive 备用）")]
+    public float minObstacleSize = 1f;
+    public float maxObstacleSize = 2.5f;
 
-    [Header("障碍物伤害")]
+    [Header("碰撞伤害")]
     public float cubeDamage = 25f;
     public float cylinderDamage = 30f;
     public float sphereDamage = 20f;
 
-    [Header("跑道设置")]
-    public float roadWidth = 10f;              // 跑道宽度
-    public float roadMargin = 1.5f;            // 边缘留白
+    [Header("道路设置")]
+    public float roadWidth = 10f;
+    public float roadMargin = 1.5f;
+
+    [Header("车道生成")]
+    public bool useLaneSpawning = true;
+    [Range(1, 5)]
+    public int laneCount = 3;
+    [Tooltip("保证至少多少条车道保持畅通")]
+    [Range(0, 2)]
+    public int minFreeLanes = 1;
+    [Range(0f, 1f)]
+    public float laneSpawnProbability = 0.6f;
+
+    [Header("随机生成")]
+    public bool allowFreeformSpawn = true;
+    [Range(1, 4)]
+    public int maxFreeformPerRow = 2;
+    public float minFreeformSpacing = 1.5f;
+
+    [Header("模型障碍（优先使用）")]
+    public List<GameObject> obstaclePrefabs = new List<GameObject>();
+    public Vector3 prefabScale = Vector3.one;
+    public bool autoAddCollider = true;
+    public bool forceTriggerCollider = true;
+    [Tooltip("用于随机排布时的预估半宽，帮助避免重叠")]
+    public float estimatedHalfWidth = 0.6f;
+
+    [Header("动态生成距离")]
+    public float lookAheadTime = 3f;
 
     private Transform playerTransform;
-    private List<GameObject> activeObstacles = new List<GameObject>();
-    private float nextSpawnZ = 30f;            // 下一个障碍物生成的Z位置
     private PlayerController playerController;
+    private readonly List<GameObject> activeObstacles = new List<GameObject>();
+    private readonly List<float> laneCenters = new List<float>();
+    private readonly List<int> laneOrder = new List<int>();
+    private readonly List<RowObstacleInfo> rowPlacementBuffer = new List<RowObstacleInfo>(8);
+    private float nextSpawnZ = 30f;
+    private bool laneCacheDirty = true;
 
-    // 障碍物类型枚举
-    enum ObstacleType
+    private enum ObstacleType
     {
         Cube,
         Cylinder,
         Sphere
     }
 
+    private struct RowObstacleInfo
+    {
+        public float centerX;
+        public float halfWidth;
+    }
+
+    void OnValidate()
+    {
+        if (laneCount < 1) laneCount = 1;
+        minFreeLanes = Mathf.Clamp(minFreeLanes, 0, laneCount - 1);
+        if (maxObstacleDistance < minObstacleDistance)
+        {
+            maxObstacleDistance = minObstacleDistance;
+        }
+        laneCacheDirty = true;
+    }
+
     void Start()
     {
-        playerTransform = GameObject.FindGameObjectWithTag("Player").transform;
-        playerController = playerTransform.GetComponent<PlayerController>();
-        
-        // 初始化下一个生成位置
-        nextSpawnZ = playerTransform.position.z + minSpawnDistance;
-
-        // 预生成一些障碍物
-        for (int i = 0; i < 10; i++)
+        GameObject player = GameObject.FindGameObjectWithTag("Player");
+        if (player == null)
         {
-            SpawnObstacle();
+            Debug.LogError("[ObstacleSpawner] 未找到 Player，无法生成障碍。");
+            enabled = false;
+            return;
         }
+
+        playerTransform = player.transform;
+        playerController = player.GetComponent<PlayerController>();
+        nextSpawnZ = playerTransform.position.z + Mathf.Max(minSpawnDistance, safeZoneDistance);
+
+        RebuildLaneCache();
+        PrewarmObstacles();
     }
 
     void Update()
     {
         if (playerController != null && playerController.IsGameOver())
-            return;
-
-        // 检查是否需要生成新障碍物
-        while (nextSpawnZ - playerTransform.position.z < spawnDistance)
         {
-            SpawnObstacle();
+            return;
         }
 
-        // 移除玩家后方的障碍物（但要避开安全区域）
+        float requiredAhead = GetRequiredAheadDistance();
+        while (nextSpawnZ - playerTransform.position.z < requiredAhead)
+        {
+            SpawnObstacleRow();
+        }
+
         RemoveOldObstacles();
     }
 
-    void SpawnObstacle()
+    void SpawnObstacleRow()
     {
-        // 随机选择障碍物类型
-        ObstacleType type = (ObstacleType)Random.Range(0, 3);
-        
-        // 随机生成障碍物尺寸
-        float size = Random.Range(minObstacleSize, maxObstacleSize);
-        
-        // 随机生成X位置（在跑道范围内）
-        float minX = -(roadWidth / 2) + roadMargin;
-        float maxX = (roadWidth / 2) - roadMargin;
-        float randomX = Random.Range(minX, maxX);
-        
-        // 创建障碍物
-        GameObject obstacle = null;
-        Vector3 position = new Vector3(randomX, size / 2, nextSpawnZ);
-        
-        switch (type)
+        rowPlacementBuffer.Clear();
+
+        bool spawnLaneRow = useLaneSpawning && (!allowFreeformSpawn || Random.value < laneSpawnProbability);
+        if (spawnLaneRow)
         {
-            case ObstacleType.Cube:
-                obstacle = GameObject.CreatePrimitive(PrimitiveType.Cube);
-                obstacle.transform.localScale = new Vector3(size, size, size);
-                // 随机旋转增加变化
-                obstacle.transform.rotation = Quaternion.Euler(0, Random.Range(0f, 360f), 0);
-                break;
-                
-            case ObstacleType.Cylinder:
-                obstacle = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
-                obstacle.transform.localScale = new Vector3(size, size, size);
-                // 圆柱体可以横着或竖着
-                if (Random.value > 0.5f)
-                {
-                    obstacle.transform.rotation = Quaternion.Euler(0, 0, 90);
-                }
-                break;
-                
-            case ObstacleType.Sphere:
-                obstacle = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-                obstacle.transform.localScale = new Vector3(size, size, size);
-                break;
+            SpawnLaneRow(rowPlacementBuffer);
         }
-        
-        if (obstacle != null)
+        else if (allowFreeformSpawn)
         {
-            obstacle.name = "Obstacle_" + type.ToString() + "_" + activeObstacles.Count;
-            obstacle.transform.position = position;
-            obstacle.tag = "Obstacle";
-            obstacle.transform.parent = transform;
-            
-            // 确保障碍物有碰撞体，并设置为Trigger
-            Collider collider = obstacle.GetComponent<Collider>();
-            if (collider != null)
+            SpawnFreeformRow(rowPlacementBuffer);
+        }
+        else
+        {
+            SpawnLaneRow(rowPlacementBuffer);
+        }
+
+        float distance = Random.Range(minObstacleDistance, maxObstacleDistance);
+        nextSpawnZ += distance;
+    }
+
+    void SpawnLaneRow(List<RowObstacleInfo> rowInfo)
+    {
+        if (laneCacheDirty)
+        {
+            RebuildLaneCache();
+        }
+
+        if (laneCenters.Count == 0)
+        {
+            SpawnSingleObstacle(GetRandomX(), rowInfo);
+            return;
+        }
+
+        int maxBlockable = Mathf.Max(1, laneCenters.Count - Mathf.Clamp(minFreeLanes, 0, laneCenters.Count - 1));
+        int lanesToBlock = Random.Range(1, maxBlockable + 1);
+        ShuffleLaneOrder();
+
+        for (int i = 0; i < lanesToBlock; i++)
+        {
+            SpawnSingleObstacle(laneCenters[laneOrder[i]], rowInfo);
+        }
+    }
+
+    void SpawnFreeformRow(List<RowObstacleInfo> rowInfo)
+    {
+        int obstacleCount = Random.Range(1, maxFreeformPerRow + 1);
+
+        for (int i = 0; i < obstacleCount; i++)
+        {
+            const int maxAttempts = 8;
+            float candidateX = 0f;
+            bool found = false;
+            for (int attempt = 0; attempt < maxAttempts; attempt++)
             {
-                collider.isTrigger = true;  // 设置为Trigger模式以确保碰撞检测
+                candidateX = GetRandomX();
+                if (IsFarFromExisting(candidateX, rowInfo, minFreeformSpacing, estimatedHalfWidth))
+                {
+                    found = true;
+                    break;
+                }
             }
-            
-            // 添加碰撞检测脚本并设置伤害
-            ObstacleCollision obstacleCollision = obstacle.AddComponent<ObstacleCollision>();
-            obstacleCollision.damage = GetDamageByType(type);
-            
-            // 设置材质和颜色
-            Renderer renderer = obstacle.GetComponent<Renderer>();
+
+            if (!found && rowInfo.Count > 0)
+            {
+                candidateX = GetRandomX();
+            }
+
+            SpawnSingleObstacle(candidateX, rowInfo);
+        }
+    }
+
+    void SpawnSingleObstacle(float laneX, List<RowObstacleInfo> rowInfo)
+    {
+        ObstacleType type = (ObstacleType)Random.Range(0, 3);
+        float size = Random.Range(minObstacleSize, maxObstacleSize);
+
+        GameObject obstacle = CreateObstacle(type, size);
+        if (obstacle == null)
+        {
+            return;
+        }
+
+        obstacle.name = $"Obstacle_{activeObstacles.Count}";
+        obstacle.transform.SetParent(transform);
+        obstacle.transform.position = new Vector3(laneX, 0f, nextSpawnZ);
+
+        CenterRendererOnX(obstacle, laneX);
+        AlignToGround(obstacle);
+        ClampWithinRoad(obstacle);
+
+        Collider collider = EnsureCollider(obstacle);
+        if (collider != null && forceTriggerCollider)
+        {
+            collider.isTrigger = true;
+        }
+
+        TagUtility.TryAssignTag(obstacle, "Obstacle");
+
+        ObstacleCollision obstacleCollision = obstacle.GetComponent<ObstacleCollision>();
+        if (obstacleCollision == null)
+        {
+            obstacleCollision = obstacle.AddComponent<ObstacleCollision>();
+        }
+        obstacleCollision.damage = GetDamageByType(type);
+
+        Renderer renderer = obstacle.GetComponentInChildren<Renderer>();
+        if (renderer != null && obstaclePrefabs.Count == 0)
+        {
             if (obstacleMaterial != null)
             {
                 renderer.material = obstacleMaterial;
             }
             else
             {
-                // 随机颜色
-                Color[] colors = new Color[] 
-                { 
-                    Color.red, 
-                    new Color(1f, 0.5f, 0f), // 橙色
-                    Color.yellow, 
-                    Color.magenta,
-                    new Color(0.5f, 0f, 0.5f) // 紫色
-                };
-                renderer.material.color = colors[Random.Range(0, colors.Length)];
+                renderer.material.color = GetRandomFallbackColor();
             }
-            
-            activeObstacles.Add(obstacle);
         }
-        
-        // 计算下一个障碍物的位置
-        float distance = Random.Range(minObstacleDistance, maxObstacleDistance);
-        nextSpawnZ += distance;
+
+        if (rowInfo != null)
+        {
+            Renderer latestRenderer = obstacle.GetComponentInChildren<Renderer>();
+            rowInfo.Add(new RowObstacleInfo
+            {
+                centerX = latestRenderer != null ? latestRenderer.bounds.center.x : obstacle.transform.position.x,
+                halfWidth = GetHalfWidth(latestRenderer)
+            });
+        }
+
+        activeObstacles.Add(obstacle);
+    }
+
+    GameObject CreateObstacle(ObstacleType type, float size)
+    {
+        if (obstaclePrefabs != null && obstaclePrefabs.Count > 0)
+        {
+            GameObject prefab = obstaclePrefabs[Random.Range(0, obstaclePrefabs.Count)];
+            if (prefab == null) return null;
+            GameObject instance = Instantiate(prefab);
+            instance.transform.localScale = Vector3.Scale(instance.transform.localScale, prefabScale);
+            return instance;
+        }
+
+        GameObject obstacle = null;
+        switch (type)
+        {
+            case ObstacleType.Cube:
+                obstacle = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                obstacle.transform.localScale = new Vector3(size, size, size);
+                obstacle.transform.rotation = Quaternion.Euler(0f, Random.Range(0f, 360f), 0f);
+                break;
+            case ObstacleType.Cylinder:
+                obstacle = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+                obstacle.transform.localScale = new Vector3(size, size, size);
+                if (Random.value > 0.5f)
+                {
+                    obstacle.transform.rotation = Quaternion.Euler(0f, 0f, 90f);
+                }
+                break;
+            case ObstacleType.Sphere:
+                obstacle = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+                obstacle.transform.localScale = new Vector3(size, size, size);
+                break;
+        }
+        return obstacle;
     }
 
     void RemoveOldObstacles()
     {
-        // 移除玩家后方足够远且不在安全区域内的障碍物
         for (int i = activeObstacles.Count - 1; i >= 0; i--)
         {
-            if (activeObstacles[i] == null) continue;
-            
+            if (activeObstacles[i] == null)
+            {
+                activeObstacles.RemoveAt(i);
+                continue;
+            }
+
             float obstacleZ = activeObstacles[i].transform.position.z;
             float distanceFromPlayer = obstacleZ - playerTransform.position.z;
-            
-            // 只移除在玩家后方且超过安全距离的障碍物
+
             if (distanceFromPlayer < -despawnDistance)
             {
-                GameObject obstacleToRemove = activeObstacles[i];
+                Destroy(activeObstacles[i]);
                 activeObstacles.RemoveAt(i);
-                Destroy(obstacleToRemove);
             }
         }
     }
 
-    // 清除所有障碍物（游戏结束时调用）
+    void PrewarmObstacles()
+    {
+        float requiredAhead = GetRequiredAheadDistance();
+        while (nextSpawnZ - playerTransform.position.z < requiredAhead)
+        {
+            SpawnObstacleRow();
+        }
+    }
+
+    float GetRequiredAheadDistance()
+    {
+        float dynamicAhead = 0f;
+        if (playerController != null)
+        {
+            float liveSpeed = Mathf.Abs(playerController.GetForwardSpeed());
+            float expectedSpeed = Mathf.Max(liveSpeed, playerController.maxForwardSpeed);
+            dynamicAhead = expectedSpeed * lookAheadTime;
+        }
+        return Mathf.Max(spawnDistance, dynamicAhead);
+    }
+
+    bool IsFarFromExisting(float candidateX, List<RowObstacleInfo> existing, float padding, float candidateHalfWidth)
+    {
+        for (int i = 0; i < existing.Count; i++)
+        {
+            float minDistance = existing[i].halfWidth + candidateHalfWidth + padding;
+            if (Mathf.Abs(existing[i].centerX - candidateX) < minDistance)
+            {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    float GetMinX()
+    {
+        return -(roadWidth / 2f) + roadMargin;
+    }
+
+    float GetMaxX()
+    {
+        return (roadWidth / 2f) - roadMargin;
+    }
+
+    float GetRandomX()
+    {
+        return Random.Range(GetMinX(), GetMaxX());
+    }
+
+    void CenterRendererOnX(GameObject obstacle, float targetCenterX)
+    {
+        Renderer renderer = obstacle.GetComponentInChildren<Renderer>();
+        if (renderer == null) return;
+        float currentCenterX = renderer.bounds.center.x;
+        float offset = targetCenterX - currentCenterX;
+        obstacle.transform.position += new Vector3(offset, 0f, 0f);
+    }
+
+    void AlignToGround(GameObject obstacle)
+    {
+        Renderer renderer = obstacle.GetComponentInChildren<Renderer>();
+        if (renderer == null) return;
+        Bounds bounds = renderer.bounds;
+        float bottom = bounds.min.y;
+        obstacle.transform.position += new Vector3(0f, -bottom, 0f);
+    }
+
+    void ClampWithinRoad(GameObject obstacle)
+    {
+        Renderer renderer = obstacle.GetComponentInChildren<Renderer>();
+        if (renderer == null) return;
+
+        Bounds bounds = renderer.bounds;
+        float halfWidth = bounds.extents.x;
+        float minCenterX = GetMinX() + halfWidth;
+        float maxCenterX = GetMaxX() - halfWidth;
+        float currentCenterX = bounds.center.x;
+        float clampedCenter = Mathf.Clamp(currentCenterX, minCenterX, maxCenterX);
+        obstacle.transform.position += new Vector3(clampedCenter - currentCenterX, 0f, 0f);
+    }
+
+    float GetHalfWidth(Renderer renderer)
+    {
+        if (renderer == null) return 0.5f;
+        return Mathf.Max(0.25f, renderer.bounds.extents.x);
+    }
+
+    Collider EnsureCollider(GameObject obstacle)
+    {
+        Collider collider = obstacle.GetComponentInChildren<Collider>();
+        if (collider != null || !autoAddCollider)
+        {
+            return collider;
+        }
+
+        MeshFilter filter = obstacle.GetComponentInChildren<MeshFilter>();
+        if (filter != null && filter.sharedMesh != null)
+        {
+            MeshCollider meshCollider = obstacle.AddComponent<MeshCollider>();
+            meshCollider.sharedMesh = filter.sharedMesh;
+            meshCollider.convex = true;
+            return meshCollider;
+        }
+
+        BoxCollider boxCollider = obstacle.AddComponent<BoxCollider>();
+        Renderer renderer = obstacle.GetComponentInChildren<Renderer>();
+        if (renderer != null)
+        {
+            ApplyBoundsToCollider(renderer.bounds, obstacle.transform, boxCollider);
+        }
+        return boxCollider;
+    }
+
+    void ApplyBoundsToCollider(Bounds bounds, Transform obstacleTransform, BoxCollider boxCollider)
+    {
+        Vector3 centerWorld = bounds.center;
+        Vector3 sizeWorld = bounds.size;
+        boxCollider.center = obstacleTransform.InverseTransformPoint(centerWorld);
+        Vector3 localSize = obstacleTransform.InverseTransformVector(new Vector3(sizeWorld.x, 0f, 0f));
+        localSize.x = Mathf.Abs(localSize.x);
+        localSize.y = Mathf.Abs(obstacleTransform.InverseTransformVector(new Vector3(0f, sizeWorld.y, 0f)).y);
+        localSize.z = Mathf.Abs(obstacleTransform.InverseTransformVector(new Vector3(0f, 0f, sizeWorld.z)).z);
+        boxCollider.size = new Vector3(localSize.x, localSize.y, localSize.z);
+    }
+
+    Color GetRandomFallbackColor()
+    {
+        Color[] colors = new Color[]
+        {
+            Color.red,
+            new Color(1f, 0.5f, 0f),
+            Color.yellow,
+            Color.magenta,
+            new Color(0.5f, 0f, 0.5f)
+        };
+        return colors[Random.Range(0, colors.Length)];
+    }
+
     public void ClearAllObstacles()
     {
         foreach (GameObject obstacle in activeObstacles)
@@ -204,5 +473,51 @@ public class ObstacleSpawner : MonoBehaviour
                 return Mathf.Max(0f, cubeDamage);
         }
     }
-}
 
+    void ShuffleLaneOrder()
+    {
+        for (int i = laneOrder.Count - 1; i > 0; i--)
+        {
+            int swapIndex = Random.Range(0, i + 1);
+            int temp = laneOrder[i];
+            laneOrder[i] = laneOrder[swapIndex];
+            laneOrder[swapIndex] = temp;
+        }
+    }
+
+    void RebuildLaneCache()
+    {
+        laneCenters.Clear();
+        laneOrder.Clear();
+
+        if (laneCount <= 0)
+        {
+            laneCacheDirty = false;
+            return;
+        }
+
+        float minX = GetMinX();
+        float maxX = GetMaxX();
+        float usableWidth = Mathf.Max(0.1f, maxX - minX);
+
+        if (laneCount == 1)
+        {
+            laneCenters.Add((minX + maxX) * 0.5f);
+        }
+        else
+        {
+            float spacing = usableWidth / (laneCount - 1);
+            for (int i = 0; i < laneCount; i++)
+            {
+                laneCenters.Add(minX + spacing * i);
+            }
+        }
+
+        for (int i = 0; i < laneCount; i++)
+        {
+            laneOrder.Add(i);
+        }
+
+        laneCacheDirty = false;
+    }
+}

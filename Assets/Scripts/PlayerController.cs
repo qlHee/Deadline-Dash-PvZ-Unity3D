@@ -1,22 +1,28 @@
-using UnityEngine;
+﻿using UnityEngine;
 
+[RequireComponent(typeof(Rigidbody))]
 public class PlayerController : MonoBehaviour
 {
     [Header("移动设置")]
-    public float forwardSpeed = 10f;          // 向前移动速度
-    public float maxForwardSpeed = 20f;       // 最大向前速度
-    public float minForwardSpeed = 5f;        // 最小向前速度
-    public float speedChangeRate = 2f;        // 加速/减速的速率
-    public float horizontalSpeed = 8f;        // 左右移动速度
-    public float leftBoundary = -4f;          // 左边界
-    public float rightBoundary = 4f;          // 右边界
+    public float forwardSpeed = 10f;
+    public float maxForwardSpeed = 20f;
+    public float minForwardSpeed = 5f;
+    public float speedChangeRate = 2f;
+    public float horizontalSpeed = 8f;
+    public float leftBoundary = -4f;
+    public float rightBoundary = 4f;
 
     [Header("跳跃设置")]
-    public float jumpForce = 8f;              // 跳跃力度
-    public float gravity = 20f;               // 重力
-    private float verticalVelocity = 0f;
-    private bool isGrounded = true;
-    private CharacterController characterController;
+    public float jumpForce = 8f;
+    public float gravity = 20f;
+    public float groundedGravity = 0.5f;
+    public float jumpBufferTime = 0.1f;
+
+    [Header("Character Physics")]
+    public Transform groundCheck;
+    public float groundCheckRadius = 0.25f;
+    public float groundCheckExtraDistance = 0.05f;
+    public LayerMask groundLayerMask = ~0;
 
     [Header("生命设置")]
     public float maxHealth = 100f;
@@ -32,25 +38,72 @@ public class PlayerController : MonoBehaviour
     private float lastDamageTime = Mathf.NegativeInfinity;
     private float lastObstacleDamageTime = Mathf.NegativeInfinity;
     private const float obstacleDamageCooldown = 0.2f;
+    private float targetLaneX;
+
+    private Rigidbody rb;
+    private Collider bodyCollider;
+    private float verticalVelocity = 0f;
+    private bool isGrounded = true;
+    private float jumpRequestTime = Mathf.NegativeInfinity;
+
+    private const float defaultObstacleDamage = 25f;
+
+    void Awake()
+    {
+        rb = GetComponent<Rigidbody>();
+        if (rb == null)
+        {
+            Debug.LogError("PlayerController requires a Rigidbody component.");
+            enabled = false;
+            return;
+        }
+
+        rb.useGravity = false;
+        rb.interpolation = RigidbodyInterpolation.Interpolate;
+        rb.collisionDetectionMode = CollisionDetectionMode.Continuous;
+        rb.constraints |= RigidbodyConstraints.FreezeRotation;
+
+        bodyCollider = GetComponent<Collider>();
+        if (bodyCollider == null)
+        {
+            bodyCollider = GetComponentInChildren<Collider>();
+        }
+
+        targetLaneX = transform.position.x;
+    }
 
     void Start()
     {
-        characterController = GetComponent<CharacterController>();
         targetSpeed = forwardSpeed;
         lastPosition = transform.position;
         currentHealth = maxHealth;
+        targetLaneX = transform.position.x;
     }
 
     void Update()
     {
         if (isGameOver) return;
 
-        HandleMovement();
+        if (Input.GetKeyDown(KeyCode.Space))
+        {
+            jumpRequestTime = Time.time;
+        }
+
         HandleHealthRegen();
-        
-        // 计算移动距离（只计算向前的距离）
+        UpdateDistanceTravelled();
+    }
+
+    void FixedUpdate()
+    {
+        if (isGameOver) return;
+
+        HandleMovement();
+    }
+
+    void UpdateDistanceTravelled()
+    {
         float distanceMoved = transform.position.z - lastPosition.z;
-        if (distanceMoved > 0)
+        if (distanceMoved > 0f)
         {
             totalDistance += distanceMoved;
         }
@@ -59,7 +112,10 @@ public class PlayerController : MonoBehaviour
 
     void HandleMovement()
     {
-        // 处理加速和减速
+        float deltaTime = Time.fixedDeltaTime;
+
+        ClampHorizontalPosition();
+
         if (Input.GetKey(KeyCode.UpArrow) || Input.GetKey(KeyCode.W))
         {
             targetSpeed = maxForwardSpeed;
@@ -73,14 +129,9 @@ public class PlayerController : MonoBehaviour
             targetSpeed = forwardSpeed;
         }
 
-        // 平滑过渡速度
-        float currentSpeed = Mathf.Lerp(
-            characterController.velocity.z != 0 ? characterController.velocity.z : forwardSpeed,
-            targetSpeed,
-            Time.deltaTime * speedChangeRate
-        );
+        float sourceSpeed = Mathf.Abs(rb.velocity.z) > 0.01f ? rb.velocity.z : forwardSpeed;
+        float currentSpeed = Mathf.Lerp(sourceSpeed, targetSpeed, deltaTime * speedChangeRate);
 
-        // 处理左右移动
         float horizontalInput = 0f;
         if (Input.GetKey(KeyCode.LeftArrow) || Input.GetKey(KeyCode.A))
         {
@@ -91,63 +142,99 @@ public class PlayerController : MonoBehaviour
             horizontalInput = 1f;
         }
 
-        float horizontalMovement = horizontalInput * horizontalSpeed * Time.deltaTime;
-        
-        // 限制左右移动范围
-        float newX = Mathf.Clamp(transform.position.x + horizontalMovement, leftBoundary, rightBoundary);
-        horizontalMovement = newX - transform.position.x;
+        targetLaneX += horizontalInput * horizontalSpeed * deltaTime;
+        targetLaneX = Mathf.Clamp(targetLaneX, leftBoundary, rightBoundary);
 
-        // 处理跳跃和重力
-        if (isGrounded)
+        float desiredHorizontalVelocity = (targetLaneX - rb.position.x) / Mathf.Max(deltaTime, 0.0001f);
+        if (Mathf.Abs(desiredHorizontalVelocity) < 0.01f)
         {
-            verticalVelocity = -0.5f; // 保持在地面上的小力
-            
-            if (Input.GetKeyDown(KeyCode.Space))
+            desiredHorizontalVelocity = 0f;
+        }
+
+        bool groundedNow = CheckGrounded();
+        bool jumpBuffered = Time.time - jumpRequestTime <= jumpBufferTime;
+
+        if (groundedNow)
+        {
+            verticalVelocity = Mathf.Max(verticalVelocity, -groundedGravity);
+
+            if (jumpBuffered)
             {
                 verticalVelocity = jumpForce;
-                isGrounded = false;
+                groundedNow = false;
+                jumpRequestTime = Mathf.NegativeInfinity;
             }
         }
         else
         {
-            verticalVelocity -= gravity * Time.deltaTime;
+            verticalVelocity -= gravity * deltaTime;
         }
 
-        // 组合移动向量
-        Vector3 moveVector = new Vector3(
-            horizontalMovement / Time.deltaTime,
+        Vector3 desiredVelocity = new Vector3(
+            desiredHorizontalVelocity,
             verticalVelocity,
             currentSpeed
         );
 
-        // 应用移动
-        characterController.Move(moveVector * Time.deltaTime);
-
-        // 检测是否着地
-        if (characterController.isGrounded && verticalVelocity < 0)
-        {
-            isGrounded = true;
-        }
+        rb.velocity = desiredVelocity;
+        isGrounded = groundedNow;
     }
 
-    void OnControllerColliderHit(ControllerColliderHit hit)
+    void ClampHorizontalPosition()
     {
-        // 检测碰撞障碍物
-        if (hit.gameObject.CompareTag("Obstacle"))
+        float clampedX = Mathf.Clamp(rb.position.x, leftBoundary, rightBoundary);
+        if (!Mathf.Approximately(clampedX, rb.position.x))
         {
-            ApplyObstacleCollision(hit.gameObject);
+            rb.position = new Vector3(clampedX, rb.position.y, rb.position.z);
+        }
+        targetLaneX = Mathf.Clamp(targetLaneX, leftBoundary, rightBoundary);
+    }
+
+    bool CheckGrounded()
+    {
+        if (groundCheck != null)
+        {
+            return Physics.CheckSphere(
+                groundCheck.position,
+                groundCheckRadius,
+                groundLayerMask,
+                QueryTriggerInteraction.Ignore
+            );
         }
 
-        // 检测地面
-        if (hit.normal.y > 0.7f)
+        if (bodyCollider != null)
         {
-            isGrounded = true;
+            Vector3 origin = bodyCollider.bounds.center;
+            float distance = bodyCollider.bounds.extents.y + groundCheckExtraDistance;
+            return Physics.Raycast(
+                origin,
+                Vector3.down,
+                distance,
+                groundLayerMask,
+                QueryTriggerInteraction.Ignore
+            );
+        }
+
+        Vector3 fallbackOrigin = transform.position + Vector3.up * groundCheckExtraDistance;
+        return Physics.Raycast(
+            fallbackOrigin,
+            Vector3.down,
+            groundCheckExtraDistance * 2f,
+            groundLayerMask,
+            QueryTriggerInteraction.Ignore
+        );
+    }
+
+    void OnCollisionEnter(Collision collision)
+    {
+        if (collision.gameObject.CompareTag("Obstacle"))
+        {
+            ApplyObstacleCollision(collision.gameObject);
         }
     }
 
     void OnTriggerEnter(Collider other)
     {
-        // 使用Trigger作为额外的碰撞检测方式
         if (other.CompareTag("Obstacle"))
         {
             ApplyObstacleCollision(other.gameObject);
@@ -224,9 +311,8 @@ public class PlayerController : MonoBehaviour
         if (isGameOver) return;
         
         isGameOver = true;
-        Debug.Log("游戏结束！调用GameOver()");
+        Debug.Log("游戏结束：调用 GameOver()");
         
-        // 通知游戏管理器
         GameManager gameManager = FindObjectOfType<GameManager>();
         if (gameManager != null)
         {
@@ -234,7 +320,6 @@ public class PlayerController : MonoBehaviour
         }
     }
 
-    // 公开方法供外部调用
     public void TriggerGameOver()
     {
         GameOver();
@@ -247,7 +332,7 @@ public class PlayerController : MonoBehaviour
 
     public float GetForwardSpeed()
     {
-        return characterController.velocity.z;
+        return rb != null ? rb.velocity.z : 0f;
     }
 
     public float GetTotalDistance()
@@ -264,7 +349,4 @@ public class PlayerController : MonoBehaviour
     {
         return maxHealth;
     }
-
-    private const float defaultObstacleDamage = 25f;
 }
-

@@ -1,4 +1,4 @@
-using UnityEngine;
+﻿﻿using UnityEngine;
 using TMPro;
 using UnityEngine.UI;
 
@@ -14,7 +14,7 @@ public class GameUI : MonoBehaviour
         return onePixelSprite;
     }
 
-    [Header("UI元素")]
+    [Header("UI 元素")]
     public TextMeshProUGUI speedText;
     public TextMeshProUGUI distanceText;
     public TextMeshProUGUI gameOverText;
@@ -25,15 +25,13 @@ public class GameUI : MonoBehaviour
     private PlayerController playerController;
     private GameManager gameManager;
     
-    // 受伤红色边缘遮罩
-    private RectTransform overlayRoot;
-    private Image overlayTop;
-    private Image overlayBottom;
-    private Image overlayLeft;
-    private Image overlayRight;
-    private const float hurtThreshold = 37f;
-    private const float overlayAlpha = 0.35f;
-    private const float edgeThickness = 120f; // 边缘厚度（像素）
+    [Header("残血遮罩")]
+    public Image bloodOverlayImage;
+    public float hurtThreshold = 37f;
+    [Range(0f, 1f)]
+    public float maxBloodOverlayAlpha = 0.75f;
+    public float pulseAmplitude = 0.08f;
+    public float pulseSpeed = 3f;
 
     void Start()
     {
@@ -42,7 +40,6 @@ public class GameUI : MonoBehaviour
 
         SetupHealthSliderVisuals();
         ResizeHealthSliderByMaxHealth();
-        EnsureHurtOverlay();
     }
 
     void Update()
@@ -51,7 +48,7 @@ public class GameUI : MonoBehaviour
         {
             bool isGameOver = gameManager.IsGameOver();
             
-            // 游戏进行中显示速度和距离
+            // 游戏进行时刷新速度与距离
             if (!isGameOver)
             {
                 if (playerController != null && speedText != null)
@@ -82,18 +79,18 @@ public class GameUI : MonoBehaviour
                     healthSlider.value = currentHealth;
                 }
                 
-                // 控制受伤遮罩
-                UpdateHurtOverlay(currentHealth);
+                // 根据血量控制遮罩
+                UpdateBloodOverlay(currentHealth);
             }
 
-            // 游戏结束时显示得分
+            // 游戏结束后显示结算距离
             if (isGameOver && scoreText != null)
             {
                 float score = gameManager.GetFinalScore();
-                scoreText.text = $"Distance: {score:F1} m";
+                scoreText.text = $"distance: {score:F1} m";
             }
             
-            // 显示/隐藏游戏结束文本
+            // 控制结束提示的显隐
             if (gameOverText != null)
             {
                 gameOverText.gameObject.SetActive(isGameOver);
@@ -115,20 +112,20 @@ public class GameUI : MonoBehaviour
     {
         if (playerController == null || healthSlider == null) return;
 
-        // 数值绑定
+        // 初始化血条参数
         healthSlider.minValue = 0f;
         healthSlider.wholeNumbers = false;
         healthSlider.maxValue = playerController.GetMaxHealth();
         healthSlider.value = playerController.GetCurrentHealth();
 
-        // 移除手柄，避免交界处出现按钮形状
+        // 去掉 Handle，避免出现按钮效果
         if (healthSlider.handleRect != null && healthSlider.handleRect.gameObject != null)
         {
             healthSlider.handleRect.gameObject.SetActive(false);
             healthSlider.handleRect = null;
         }
 
-        // 填充颜色设置为红色，其余所有 Image 设为透明
+        // 将填充部分设为红色，其余 Image 透明
         Image fillImg = null;
         if (healthSlider.fillRect != null)
         {
@@ -149,14 +146,14 @@ public class GameUI : MonoBehaviour
             }
         }
 
-        // 根节点 Image 透明
+        // Slider 自身背景设为透明
         Image rootImg = healthSlider.GetComponent<Image>();
         if (rootImg != null)
         {
             rootImg.color = new Color(0f, 0f, 0f, 0f);
         }
 
-        // 所有非填充 Image 透明，并选择一个作为极窄黑边框
+        // 其它 Image 设透明，仅保留一个作为描边
         Image outlineTarget = null;
         Image[] allImages = healthSlider.GetComponentsInChildren<Image>(true);
         foreach (var img in allImages)
@@ -184,7 +181,7 @@ public class GameUI : MonoBehaviour
         {
             outlineTarget.type = Image.Type.Simple;
             outlineTarget.sprite = GetOnePixelSprite();
-            outlineTarget.color = new Color(0f, 0f, 0f, 0f); // 自身透明，仅显示Outline
+            outlineTarget.color = new Color(0f, 0f, 0f, 0f); // 本体透明，仅显示描边
             var bgMask = outlineTarget.GetComponent<Mask>();
             if (bgMask != null) bgMask.enabled = false;
             var bgRMask = outlineTarget.GetComponent<RectMask2D>();
@@ -195,11 +192,11 @@ public class GameUI : MonoBehaviour
                 outline = outlineTarget.gameObject.AddComponent<Outline>();
             }
             outline.effectColor = new Color(0f, 0f, 0f, 1f);
-            outline.effectDistance = new Vector2(0.5f, 0.5f); // 极窄黑边
+            outline.effectDistance = new Vector2(0.5f, 0.5f); // 描边偏移
             outline.useGraphicAlpha = false;
         }
 
-        // 填充从左到右，FillArea 去除左右内边距，保证满/空贴边无间隙
+        // 让填充从左到右铺满，移除 FillArea 边距
         healthSlider.direction = Slider.Direction.LeftToRight;
         if (healthSlider.fillRect != null)
         {
@@ -224,7 +221,7 @@ public class GameUI : MonoBehaviour
                 var areaRMask = fillArea.GetComponent<RectMask2D>();
                 if (areaRMask != null) areaRMask.enabled = false;
             }
-            // 确保填充图层本身无左右偏移，避免满/空时出现缝隙
+            // 防止填充 Rect 本身产生水平偏移
             RectTransform fillRect = healthSlider.fillRect as RectTransform;
             if (fillRect != null)
             {
@@ -242,7 +239,7 @@ public class GameUI : MonoBehaviour
         if (playerController == null || healthSlider == null) return;
         float maxHealth = playerController.GetMaxHealth();
         float width = 4f * maxHealth; // 100 -> 400
-        float height = 40f; // 固定40
+        float height = 40f; // 高度固定 40
         RectTransform rt = healthSlider.GetComponent<RectTransform>();
         if (rt != null)
         {
@@ -251,60 +248,31 @@ public class GameUI : MonoBehaviour
         }
     }
 
-    void EnsureHurtOverlay()
+    void UpdateBloodOverlay(float currentHealth)
     {
-        // 在当前 UI 根下创建一个用于边缘遮罩的容器
-        if (overlayRoot != null) return;
-        Canvas rootCanvas = GetComponentInParent<Canvas>();
-        if (rootCanvas == null) return;
+        if (bloodOverlayImage == null)
+        {
+            return;
+        }
 
-        GameObject root = new GameObject("HurtOverlay", typeof(RectTransform));
-        root.transform.SetParent(rootCanvas.transform, false);
-        overlayRoot = root.GetComponent<RectTransform>();
-        overlayRoot.anchorMin = Vector2.zero;
-        overlayRoot.anchorMax = Vector2.one;
-        overlayRoot.offsetMin = Vector2.zero;
-        overlayRoot.offsetMax = Vector2.zero;
-        overlayRoot.SetAsLastSibling(); // 确保覆盖在最上层
+        if (currentHealth >= hurtThreshold)
+        {
+            SetOverlayAlpha(0f);
+            return;
+        }
 
-        // 创建四个边
-        overlayTop = CreateEdge("Top", new Vector2(0f, 1f), new Vector2(1f, 1f), new Vector2(0f, -edgeThickness));
-        overlayBottom = CreateEdge("Bottom", new Vector2(0f, 0f), new Vector2(1f, 0f), new Vector2(0f, edgeThickness));
-        overlayLeft = CreateEdge("Left", new Vector2(0f, 0f), new Vector2(0f, 1f), new Vector2(edgeThickness, 0f));
-        overlayRight = CreateEdge("Right", new Vector2(1f, 0f), new Vector2(1f, 1f), new Vector2(-edgeThickness, 0f));
-
-        SetEdgesActive(false);
+        float normalized = Mathf.InverseLerp(hurtThreshold, 0f, Mathf.Max(0f, currentHealth));
+        float pulse = 1f + Mathf.Sin(Time.time * pulseSpeed) * pulseAmplitude;
+        float targetAlpha = Mathf.Clamp01(maxBloodOverlayAlpha * normalized * pulse);
+        SetOverlayAlpha(Mathf.Lerp(bloodOverlayImage.color.a, targetAlpha, Time.deltaTime * 5f));
     }
 
-    Image CreateEdge(string name, Vector2 anchorMin, Vector2 anchorMax, Vector2 edgeOffset)
+    void SetOverlayAlpha(float alpha)
     {
-        GameObject go = new GameObject($"HurtEdge-{name}", typeof(RectTransform), typeof(Image));
-        go.transform.SetParent(overlayRoot, false);
-        RectTransform rt = go.GetComponent<RectTransform>();
-        rt.anchorMin = anchorMin;
-        rt.anchorMax = anchorMax;
-        rt.offsetMin = new Vector2(Mathf.Min(0f, edgeOffset.x), Mathf.Min(0f, edgeOffset.y));
-        rt.offsetMax = new Vector2(Mathf.Max(0f, edgeOffset.x), Mathf.Max(0f, edgeOffset.y));
-        Image img = go.GetComponent<Image>();
-        img.sprite = GetOnePixelSprite();
-        img.type = Image.Type.Sliced;
-        img.color = new Color(1f, 0f, 0f, overlayAlpha);
-        return img;
-    }
-
-    void SetEdgesActive(bool active)
-    {
-        if (overlayTop != null) overlayTop.enabled = active;
-        if (overlayBottom != null) overlayBottom.enabled = active;
-        if (overlayLeft != null) overlayLeft.enabled = active;
-        if (overlayRight != null) overlayRight.enabled = active;
-    }
-
-    void UpdateHurtOverlay(float currentHealth)
-    {
-        if (overlayRoot == null) return;
-        bool show = currentHealth < hurtThreshold;
-        SetEdgesActive(show);
+        Color c = bloodOverlayImage.color;
+        c.a = alpha;
+        bloodOverlayImage.color = c;
     }
 }
+
 

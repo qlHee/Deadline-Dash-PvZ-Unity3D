@@ -1,27 +1,25 @@
-using UnityEngine;
+﻿using UnityEngine;
 using UnityEngine.SceneManagement;
 
 public class GameManager : MonoBehaviour
 {
-    [Header("UI设置")]
+    [Header("UI 设置")]
     public GameObject gameOverUI;
-    
-    private bool isGameOver = false;
-    private float gameTime = 0f;
-    private float finalScore = 0f;
+
+    private bool isGameOver;
+    private float gameTime;
+    private float finalScore;
     private PlayerController playerController;
 
     void Start()
     {
-        // 隐藏游戏结束UI
         if (gameOverUI != null)
         {
             gameOverUI.SetActive(false);
         }
-        
+
         Time.timeScale = 1f;
-        
-        // 获取玩家控制器
+
         GameObject player = GameObject.FindGameObjectWithTag("Player");
         if (player != null)
         {
@@ -36,7 +34,6 @@ public class GameManager : MonoBehaviour
             gameTime += Time.deltaTime;
         }
 
-        // 按R键重新开始游戏
         if (isGameOver && Input.GetKeyDown(KeyCode.R))
         {
             RestartGame();
@@ -46,23 +43,21 @@ public class GameManager : MonoBehaviour
     public void OnGameOver()
     {
         if (isGameOver) return;
-        
+
         isGameOver = true;
-        
-        // 获取最终得分（移动距离）
+
         if (playerController != null)
         {
             finalScore = playerController.GetTotalDistance();
         }
-        
-        // 显示游戏结束UI
+
         if (gameOverUI != null)
         {
             gameOverUI.SetActive(true);
         }
-        
-        Debug.Log($"游戏结束！得分: {finalScore:F1}米");
-        Debug.Log("按 R 键重新开始游戏");
+
+        Debug.Log($"游戏结束，得分 {finalScore:F1} 米");
+        Debug.Log("按 R 重新开始");
     }
 
     public void RestartGame()
@@ -71,28 +66,12 @@ public class GameManager : MonoBehaviour
         SceneManager.LoadScene(SceneManager.GetActiveScene().name);
     }
 
-    public float GetGameTime()
-    {
-        return gameTime;
-    }
-
-    public bool IsGameOver()
-    {
-        return isGameOver;
-    }
-
-    public float GetFinalScore()
-    {
-        return finalScore;
-    }
+    public float GetGameTime() => gameTime;
+    public bool IsGameOver() => isGameOver;
+    public float GetFinalScore() => finalScore;
 
     public float GetCurrentDistance()
     {
-        if (playerController != null)
-        {
-            return playerController.GetTotalDistance();
-        }
-        return 0f;
+        return playerController != null ? playerController.GetTotalDistance() : 0f;
     }
 }
-
