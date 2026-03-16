@@ -24,6 +24,26 @@ public class GameManager : MonoBehaviour
         if (player != null)
         {
             playerController = player.GetComponent<PlayerController>();
+            ApplySelectedCharacterAttributes();
+        }
+    }
+    
+    void ApplySelectedCharacterAttributes()
+    {
+        if (playerController == null)
+        {
+            Debug.LogWarning("PlayerController not found, cannot apply character attributes.");
+            return;
+        }
+        
+        CharacterData selectedCharacter = CharacterManager.Instance.GetSelectedCharacter();
+        if (selectedCharacter != null)
+        {
+            selectedCharacter.ApplyToPlayerController(playerController);
+        }
+        else
+        {
+            Debug.LogWarning("No character selected, using default attributes.");
         }
     }
 
@@ -68,10 +88,7 @@ public class GameManager : MonoBehaviour
     public void LoadMainMenu()
     {
         Time.timeScale = 1f;
-        // 如果有主菜单场景，请修改为对应的场景名称
-        // SceneManager.LoadScene("MainMenu");
-        // 目前没有主菜单，暂时重新加载当前场景
-        SceneManager.LoadScene(SceneManager.GetActiveScene().name);
+        SceneManager.LoadScene("MainMenu");
     }
 
     public float GetGameTime() => gameTime;
