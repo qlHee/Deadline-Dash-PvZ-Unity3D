@@ -3723,7 +3723,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: "\u9000\u56DE\u4E3B\u754C\u9762"
+  m_text: "\u97F3\u91CF\u8C03\u8282"
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 54bd90ca4f3a84ca880e76e22c8d4268, type: 2}
   m_sharedMaterial: {fileID: 6974479413055398363, guid: 54bd90ca4f3a84ca880e76e22c8d4268, type: 2}
