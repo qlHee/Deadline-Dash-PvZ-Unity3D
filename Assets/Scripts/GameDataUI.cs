@@ -2,7 +2,6 @@ using System;
 using System.Text;
 using TMPro;
 using UnityEngine;
-using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 
 public class GameDataUI : MonoBehaviour
@@ -25,8 +24,6 @@ public class GameDataUI : MonoBehaviour
     public Button bestTabButton;
     public TMP_Text recordsText;
     public TMP_Text bestText;
-    public ScrollRect recordsScroll;
-    public ScrollRect bestScroll;
 
     [Header("Behavior")]
     public bool autoBuild = true;
@@ -66,63 +63,6 @@ public class GameDataUI : MonoBehaviour
         if (panelRoot != null)
         {
             panelRoot.SetActive(false);
-        }
-    }
-
-    void OnEnable()
-    {
-        SceneManager.sceneLoaded += OnSceneLoaded;
-        if (autoBind)
-        {
-            AutoBind();
-        }
-        TryPreparePanel();
-    }
-
-    void OnDisable()
-    {
-        SceneManager.sceneLoaded -= OnSceneLoaded;
-    }
-
-    void OnSceneLoaded(Scene scene, LoadSceneMode mode)
-    {
-        if (autoBind)
-        {
-            AutoBind();
-        }
-        TryPreparePanel();
-    }
-
-    void TryPreparePanel()
-    {
-        if (openButton == null && autoBind)
-        {
-            AutoBind();
-        }
-
-        if (openButton == null)
-        {
-            return;
-        }
-
-        EnsurePanel();
-        if (panelRoot != null)
-        {
-            panelRoot.SetActive(false);
-        }
-    }
-
-    void EnsurePanel()
-    {
-        if (panelRoot == null || recordsText == null || bestText == null || recordsScroll == null || bestScroll == null)
-        {
-            if (panelRoot != null)
-            {
-                Destroy(panelRoot);
-            }
-
-            BuildPanel();
-            BindButtons();
         }
     }
 
@@ -179,7 +119,6 @@ public class GameDataUI : MonoBehaviour
 
     public void TogglePanel()
     {
-        EnsurePanel();
         if (panelRoot == null)
         {
             return;
@@ -189,13 +128,11 @@ public class GameDataUI : MonoBehaviour
         panelRoot.SetActive(nextState);
         if (nextState)
         {
-            bool shouldRefresh = refreshOnOpen || recordsText == null || string.IsNullOrEmpty(recordsText.text);
-            if (shouldRefresh)
+            if (refreshOnOpen)
             {
                 Refresh();
             }
             ApplyTabState();
-            ResetScrollPositions();
         }
     }
 
@@ -209,20 +146,15 @@ public class GameDataUI : MonoBehaviour
 
     public void Refresh()
     {
-        EnsurePanel();
         if (recordsText != null)
         {
             recordsText.text = BuildRecordsText();
-            UpdateScrollContent(recordsScroll, recordsText);
         }
 
         if (bestText != null)
         {
             bestText.text = BuildBestText();
-            UpdateScrollContent(bestScroll, bestText);
         }
-
-        Canvas.ForceUpdateCanvases();
     }
 
     void ShowRecordsTab()
@@ -239,20 +171,12 @@ public class GameDataUI : MonoBehaviour
 
     void ApplyTabState()
     {
-        if (recordsScroll != null)
-        {
-            recordsScroll.gameObject.SetActive(showRecords);
-        }
-        else if (recordsText != null)
+        if (recordsText != null)
         {
             recordsText.gameObject.SetActive(showRecords);
         }
 
-        if (bestScroll != null)
-        {
-            bestScroll.gameObject.SetActive(!showRecords);
-        }
-        else if (bestText != null)
+        if (bestText != null)
         {
             bestText.gameObject.SetActive(!showRecords);
         }
@@ -265,21 +189,6 @@ public class GameDataUI : MonoBehaviour
         if (bestTabButton != null)
         {
             SetTabButtonState(bestTabButton, !showRecords);
-        }
-
-        ResetScrollPositions();
-    }
-
-    void ResetScrollPositions()
-    {
-        if (recordsScroll != null)
-        {
-            recordsScroll.verticalNormalizedPosition = 1f;
-        }
-
-        if (bestScroll != null)
-        {
-            bestScroll.verticalNormalizedPosition = 1f;
         }
     }
 
@@ -407,152 +316,21 @@ public class GameDataUI : MonoBehaviour
         recordsTabButton = CreateButton(panelObj.transform, "RecordsTab", "游戏记录", new Vector2(-90f, 230f), tabButtonSize);
         bestTabButton = CreateButton(panelObj.transform, "BestTab", "最高记录", new Vector2(90f, 230f), tabButtonSize);
 
-        Vector2 scrollSize = new Vector2(780f, 400f);
-        CreateScrollView(panelObj.transform, "RecordsScroll", new Vector2(0f, -10f), scrollSize, out recordsScroll, out recordsText);
-        CreateScrollView(panelObj.transform, "BestScroll", new Vector2(0f, -10f), scrollSize, out bestScroll, out bestText);
+        GameObject recordsObj = CreateTextBlock(panelObj.transform, "RecordsText", new Vector2(0f, -10f), new Vector2(780f, 400f));
+        recordsText = recordsObj.GetComponent<TMP_Text>();
+        recordsText.alignment = TextAlignmentOptions.TopLeft;
+
+        GameObject bestObj = CreateTextBlock(panelObj.transform, "BestText", new Vector2(0f, -10f), new Vector2(780f, 400f));
+        bestText = bestObj.GetComponent<TMP_Text>();
+        bestText.alignment = TextAlignmentOptions.TopLeft;
 
         closeButton = CreateButton(panelObj.transform, "CloseButton", "关闭", new Vector2(300f, -230f), buttonSize);
-        panelRoot.SetActive(false);
     }
 
     TMP_FontAsset FindSceneFont()
     {
         TMP_Text anyText = FindObjectOfType<TMP_Text>();
         return anyText != null ? anyText.font : null;
-    }
-
-    GameObject CreateScrollView(Transform parent, string name, Vector2 anchoredPos, Vector2 size, out ScrollRect scrollRect, out TMP_Text text)
-    {
-        GameObject root = new GameObject(name);
-        root.transform.SetParent(parent, false);
-        RectTransform rootRt = root.AddComponent<RectTransform>();
-        rootRt.anchorMin = new Vector2(0.5f, 0.5f);
-        rootRt.anchorMax = new Vector2(0.5f, 0.5f);
-        rootRt.pivot = new Vector2(0.5f, 0.5f);
-        rootRt.anchoredPosition = anchoredPos;
-        rootRt.sizeDelta = size;
-
-        Image rootImage = root.AddComponent<Image>();
-        rootImage.sprite = GetOnePixelSprite();
-        rootImage.color = new Color(0f, 0f, 0f, 0f);
-
-        scrollRect = root.AddComponent<ScrollRect>();
-        scrollRect.horizontal = false;
-        scrollRect.vertical = true;
-        scrollRect.movementType = ScrollRect.MovementType.Clamped;
-        scrollRect.scrollSensitivity = 20f;
-
-        GameObject viewport = new GameObject("Viewport");
-        viewport.transform.SetParent(root.transform, false);
-        RectTransform viewportRt = viewport.AddComponent<RectTransform>();
-        viewportRt.anchorMin = Vector2.zero;
-        viewportRt.anchorMax = Vector2.one;
-        viewportRt.offsetMin = Vector2.zero;
-        viewportRt.offsetMax = Vector2.zero;
-
-        Image viewportImage = viewport.AddComponent<Image>();
-        viewportImage.sprite = GetOnePixelSprite();
-        viewportImage.color = new Color(0f, 0f, 0f, 0.01f);
-        viewportImage.raycastTarget = false;
-        viewport.AddComponent<RectMask2D>();
-
-        GameObject content = new GameObject("Content");
-        content.transform.SetParent(viewport.transform, false);
-        RectTransform contentRt = content.AddComponent<RectTransform>();
-        contentRt.anchorMin = new Vector2(0f, 1f);
-        contentRt.anchorMax = new Vector2(1f, 1f);
-        contentRt.pivot = new Vector2(0.5f, 1f);
-        contentRt.anchoredPosition = Vector2.zero;
-        contentRt.sizeDelta = Vector2.zero;
-
-        text = content.AddComponent<TextMeshProUGUI>();
-        text.font = fallbackFont;
-        text.fontSize = 22f;
-        text.color = Color.white;
-        text.enableWordWrapping = true;
-        text.text = "";
-        text.alignment = TextAlignmentOptions.TopLeft;
-        text.raycastTarget = false;
-        contentRt.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, size.x);
-
-        scrollRect.viewport = viewportRt;
-        scrollRect.content = contentRt;
-
-        Scrollbar scrollbar = CreateScrollbar(root.transform, "Scrollbar");
-        scrollRect.verticalScrollbar = scrollbar;
-        scrollRect.verticalScrollbarVisibility = ScrollRect.ScrollbarVisibility.AutoHideAndExpandViewport;
-        scrollRect.verticalScrollbarSpacing = -2f;
-
-        return root;
-    }
-
-    void UpdateScrollContent(ScrollRect scroll, TMP_Text text)
-    {
-        if (text == null)
-        {
-            return;
-        }
-
-        RectTransform viewport = scroll != null ? scroll.viewport : null;
-        float width = viewport != null ? viewport.rect.width : text.rectTransform.rect.width;
-        if (width <= 0f)
-        {
-            width = panelSize.x - 80f;
-        }
-
-        text.ForceMeshUpdate();
-        Vector2 preferred = text.GetPreferredValues(text.text, width, 0f);
-        RectTransform rt = text.rectTransform;
-        rt.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, width);
-        float minHeight = viewport != null ? viewport.rect.height : 0f;
-        float height = Mathf.Max(preferred.y, minHeight);
-        rt.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, height);
-        LayoutRebuilder.ForceRebuildLayoutImmediate(rt);
-    }
-
-    Scrollbar CreateScrollbar(Transform parent, string name)
-    {
-        GameObject bar = new GameObject(name);
-        bar.transform.SetParent(parent, false);
-        RectTransform barRt = bar.AddComponent<RectTransform>();
-        barRt.anchorMin = new Vector2(1f, 0f);
-        barRt.anchorMax = new Vector2(1f, 1f);
-        barRt.pivot = new Vector2(1f, 0.5f);
-        barRt.sizeDelta = new Vector2(16f, 0f);
-        barRt.anchoredPosition = new Vector2(-4f, 0f);
-
-        Image barImage = bar.AddComponent<Image>();
-        barImage.sprite = GetOnePixelSprite();
-        barImage.color = new Color(0f, 0f, 0f, 0.35f);
-
-        Scrollbar scrollbar = bar.AddComponent<Scrollbar>();
-        scrollbar.direction = Scrollbar.Direction.BottomToTop;
-
-        GameObject slidingArea = new GameObject("SlidingArea");
-        slidingArea.transform.SetParent(bar.transform, false);
-        RectTransform slidingRt = slidingArea.AddComponent<RectTransform>();
-        slidingRt.anchorMin = Vector2.zero;
-        slidingRt.anchorMax = Vector2.one;
-        slidingRt.offsetMin = Vector2.zero;
-        slidingRt.offsetMax = Vector2.zero;
-
-        GameObject handle = new GameObject("Handle");
-        handle.transform.SetParent(slidingArea.transform, false);
-        RectTransform handleRt = handle.AddComponent<RectTransform>();
-        handleRt.anchorMin = Vector2.zero;
-        handleRt.anchorMax = Vector2.one;
-        handleRt.offsetMin = new Vector2(2f, 2f);
-        handleRt.offsetMax = new Vector2(-2f, -2f);
-
-        Image handleImage = handle.AddComponent<Image>();
-        handleImage.sprite = GetOnePixelSprite();
-        handleImage.color = new Color(0.8f, 0.8f, 0.8f, 0.9f);
-
-        scrollbar.handleRect = handleRt;
-        scrollbar.targetGraphic = handleImage;
-        scrollbar.size = 0.3f;
-
-        return scrollbar;
     }
 
     GameObject CreateTextBlock(Transform parent, string name, Vector2 anchoredPos, Vector2 size)

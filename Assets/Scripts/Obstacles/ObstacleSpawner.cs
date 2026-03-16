@@ -793,10 +793,6 @@ public class ObstacleSpawner : MonoBehaviour
         {
             collider.isTrigger = true;
         }
-        if (type == ObstacleType.FireStump || type == ObstacleType.PotatoMine)
-        {
-            ReplaceMeshColliderWithBox(obstacle);
-        }
 
         if (!isSupportPickup)
         {
@@ -2372,21 +2368,9 @@ public class ObstacleSpawner : MonoBehaviour
     Collider EnsureCollider(GameObject obstacle)
     {
         Collider collider = obstacle.GetComponentInChildren<Collider>();
-        if (collider != null)
+        if (collider != null || !autoAddCollider)
         {
-            // If the collider lives on a child, add a kinematic Rigidbody so trigger callbacks
-            // reach scripts on the root obstacle (e.g., FireStump/PotatoMine).
-            if (collider.transform != obstacle.transform && obstacle.GetComponent<Rigidbody>() == null)
-            {
-                Rigidbody rb = obstacle.AddComponent<Rigidbody>();
-                rb.isKinematic = true;
-                rb.useGravity = false;
-            }
             return collider;
-        }
-        if (!autoAddCollider)
-        {
-            return null;
         }
 
         MeshFilter filter = obstacle.GetComponentInChildren<MeshFilter>();
@@ -2405,35 +2389,6 @@ public class ObstacleSpawner : MonoBehaviour
             ApplyBoundsToCollider(renderer.bounds, obstacle.transform, boxCollider);
         }
         return boxCollider;
-    }
-
-    void ReplaceMeshColliderWithBox(GameObject obstacle)
-    {
-        if (obstacle == null)
-        {
-            return;
-        }
-
-        MeshCollider meshCollider = obstacle.GetComponentInChildren<MeshCollider>();
-        if (meshCollider == null)
-        {
-            return;
-        }
-
-        BoxCollider boxCollider = obstacle.GetComponent<BoxCollider>();
-        if (boxCollider == null)
-        {
-            boxCollider = obstacle.AddComponent<BoxCollider>();
-        }
-
-        Renderer renderer = obstacle.GetComponentInChildren<Renderer>();
-        if (renderer != null)
-        {
-            ApplyBoundsToCollider(renderer.bounds, obstacle.transform, boxCollider);
-        }
-        boxCollider.isTrigger = true;
-
-        Destroy(meshCollider);
     }
 
     void ApplyBoundsToCollider(Bounds bounds, Transform obstacleTransform, BoxCollider boxCollider)

@@ -9,31 +9,19 @@ public class FireStump : MonoBehaviour
 
     void OnTriggerEnter(Collider other)
     {
-        HandleHit(other);
-    }
-
-    void OnCollisionEnter(Collision collision)
-    {
-        HandleHit(collision.collider);
-    }
-
-    void HandleHit(Collider other)
-    {
-        if (other == null)
+        if (other.CompareTag("Player"))
         {
-            return;
-        }
-
-        PlayerController player = other.GetComponentInParent<PlayerController>();
-        if (player != null && !player.IsGameOver())
-        {
-            if (player.WasFireShieldAbsorbedThisFrame() || player.TryConsumeFireShield())
+            PlayerController player = other.GetComponent<PlayerController>();
+            if (player != null && !player.IsGameOver())
             {
-                return;
-            }
-            if (player.TakeDamage(damage, DamageType.Fire))
-            {
-                player.ApplyBurningEffect(burningDuration, burningDamagePerSecond);
+                if (player.WasFireShieldAbsorbedThisFrame() || player.TryConsumeFireShield())
+                {
+                    return;
+                }
+                if (player.TakeDamage(damage, DamageType.Fire))
+                {
+                    player.ApplyBurningEffect(burningDuration, burningDamagePerSecond);
+                }
             }
         }
         else if (other.CompareTag("Obstacle"))

@@ -1,4 +1,4 @@
-﻿using UnityEngine;
+using UnityEngine;
 
 public class CharacterManager : MonoBehaviour
 {
@@ -41,13 +41,7 @@ public class CharacterManager : MonoBehaviour
     {
         if (characters == null || index < 0 || index >= characters.Length)
         {
-            Debug.LogError($"角色索引无效: {index}");
-            return;
-        }
-
-        if (!SharedUnlockIO.IsCharacterUnlocked(characters[index].characterID))
-        {
-            Debug.LogWarning($"角色未解锁: {characters[index].characterName}");
+            Debug.LogError($"Invalid character index: {index}");
             return;
         }
         
@@ -60,7 +54,7 @@ public class CharacterManager : MonoBehaviour
     {
         if (characters == null || characters.Length == 0)
         {
-            Debug.LogError("没有可用角色！");
+            Debug.LogError("No characters available!");
             return null;
         }
         
@@ -105,32 +99,5 @@ public class CharacterManager : MonoBehaviour
         {
             selectedCharacterIndex = 0;
         }
-
-        if (characters != null && characters.Length > 0)
-        {
-            if (!SharedUnlockIO.IsCharacterUnlocked(characters[selectedCharacterIndex].characterID))
-            {
-                int fallback = GetFirstUnlockedIndex();
-                selectedCharacterIndex = fallback >= 0 ? fallback : 0;
-            }
-        }
-    }
-
-    int GetFirstUnlockedIndex()
-    {
-        if (characters == null)
-        {
-            return -1;
-        }
-
-        for (int i = 0; i < characters.Length; i++)
-        {
-            if (SharedUnlockIO.IsCharacterUnlocked(characters[i].characterID))
-            {
-                return i;
-            }
-        }
-
-        return -1;
     }
 }
