@@ -24,6 +24,8 @@ This game creatively combines the classic IP Plants vs. Zombies with a parkour g
 
 You can download them through:
 https://pan.baidu.com/s/1rwlRBJ0wfCoLoj-g9u1iGw?pwd=wn2c
+or 
+https://drive.google.com/drive/folders/1vFBAxT4mCFCPVw94LGNVN4PkgJXeiUL-?usp=share_link
 
 ## Setup
 
